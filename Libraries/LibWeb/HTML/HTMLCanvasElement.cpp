@@ -190,7 +190,7 @@ void HTMLCanvasElement::attribute_changed(FlyString const& local_name, Optional<
 {
     Base::attribute_changed(local_name, old_value, value, namespace_);
 
-    if (local_name.equals_ignoring_ascii_case(HTML::AttributeNames::width) || local_name.equals_ignoring_ascii_case(HTML::AttributeNames::height)) {
+    if (local_name.is_one_of(HTML::AttributeNames::width, HTML::AttributeNames::height)) {
         notify_context_about_canvas_size_change();
         reset_context_to_default_state();
         if (auto layout_node = this->layout_node())
@@ -331,7 +331,7 @@ String HTMLCanvasElement::to_data_url(StringView type, JS::Value quality)
 
     // FIXME: 1. If this canvas element's bitmap's origin-clean flag is set to false, then throw a "SecurityError" DOMException.
 
-    // 2. If this canvas element's bitmap has no pixels (i.e. either its horizontal dimension or its vertical dimension is zero)
+    // 2. If this canvas element's bitmap has no pixels (i.e. either its horizontal dimension or its vertical dimension is zero),
     //    then return the string "data:,". (This is the shortest data: URL; it represents the empty string in a text/plain resource.)
     if (!surface)
         return "data:,"_string;
@@ -342,7 +342,7 @@ String HTMLCanvasElement::to_data_url(StringView type, JS::Value quality)
     surface->read_into_bitmap(*bitmap);
     auto file = serialize_bitmap(bitmap, type, move(quality));
 
-    // 4. If file is null then return "data:,".
+    // 4. If file is null, then return "data:,".
     if (file.is_error()) {
         dbgln("HTMLCanvasElement: Failed to encode canvas bitmap to {}: {}", type, file.error());
         return "data:,"_string;

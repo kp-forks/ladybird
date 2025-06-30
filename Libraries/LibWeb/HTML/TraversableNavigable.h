@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022, Andreas Kling <andreas@ladybird.org>
+ * Copyright (c) 2025, Jelle Raaijmakers <jelle@ladybird.org>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -7,6 +8,7 @@
 #pragma once
 
 #include <AK/Vector.h>
+#include <LibWeb/Geolocation/Geolocation.h>
 #include <LibWeb/HTML/Navigable.h>
 #include <LibWeb/HTML/NavigationType.h>
 #include <LibWeb/HTML/RenderingThread.h>
@@ -120,6 +122,10 @@ public:
     bool needs_repaint() const { return m_needs_repaint; }
     void set_needs_repaint() { m_needs_repaint = true; }
 
+    // https://w3c.github.io/geolocation/#dfn-emulated-position-data
+    Geolocation::EmulatedPositionData const& emulated_position_data() const;
+    void set_emulated_position_data(Geolocation::EmulatedPositionData data);
+
 private:
     TraversableNavigable(GC::Ref<Page>);
 
@@ -164,7 +170,7 @@ private:
 
     // https://storage.spec.whatwg.org/#traversable-navigable-storage-shed
     // A traversable navigable holds a storage shed, which is a storage shed. A traversable navigable’s storage shed holds all session storage data.
-    StorageAPI::StorageShed m_storage_shed;
+    GC::Ref<StorageAPI::StorageShed> m_storage_shed;
 
     GC::Ref<SessionHistoryTraversalQueue> m_session_history_traversal_queue;
 
@@ -173,6 +179,9 @@ private:
     RefPtr<Gfx::SkiaBackendContext> m_skia_backend_context;
 
     bool m_needs_repaint { true };
+
+    // https://w3c.github.io/geolocation/#dfn-emulated-position-data
+    Geolocation::EmulatedPositionData m_emulated_position_data;
 };
 
 struct BrowsingContextAndDocument {

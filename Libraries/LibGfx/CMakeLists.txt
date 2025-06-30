@@ -14,6 +14,7 @@ set(SOURCES
     Font/Font.cpp
     Font/FontData.cpp
     Font/FontDatabase.cpp
+    Font/FontSupport.cpp
     Font/PathFontProvider.cpp
     Font/Typeface.cpp
     Font/TypefaceSkia.cpp
@@ -60,6 +61,7 @@ set(SOURCES
 )
 
 set(SWIFT_EXCLUDE_HEADERS
+    FilterImpl.h
     GlobalFontConfig.h
     MetalContext.h
     VulkanContext.h
@@ -80,7 +82,7 @@ endif()
 
 serenity_lib(LibGfx gfx)
 
-target_link_libraries(LibGfx PRIVATE LibCompress LibCore LibCrypto LibFileSystem LibRIFF LibTextCodec LibIPC LibUnicode LibURL)
+target_link_libraries(LibGfx PRIVATE LibCompress LibCore LibCrypto LibFileSystem LibRIFF LibTextCodec LibIPC LibUnicode)
 
 set(generated_sources TIFFMetadata.h TIFFTagHandler.cpp)
 list(TRANSFORM generated_sources PREPEND "ImageFormats/")
@@ -120,6 +122,10 @@ find_package(harfbuzz REQUIRED)
 target_link_libraries(LibGfx PRIVATE PkgConfig::WOFF2 JPEG::JPEG PNG::PNG avif WebP::webp WebP::webpdecoder
             WebP::webpdemux WebP::libwebpmux skia harfbuzz)
 
+if (HAS_FONTCONFIG)
+    target_link_libraries(LibGfx PRIVATE Fontconfig::Fontconfig)
+endif()
+
 set(CMAKE_REQUIRED_LIBRARIES PNG::PNG)
 check_c_source_compiles([=[
     #include <png.h>
@@ -136,6 +142,15 @@ endif()
 
 if (NOT ANDROID)
     pkg_check_modules(Jxl REQUIRED IMPORTED_TARGET libjxl)
+    if (WIN32)
+        # FIXME: Build vcpkg libraries with clang-cl so they can also build in sanitize.
+        # https://github.com/LadybirdBrowser/ladybird/issues/5224
+        if (ENABLE_WINDOWS_CI)
+            # We have to disable ASAN for the full target as fixing the issue in the initial SkiaBackendContext.cpp TU
+            #  alone causes transitive issues in other TUs that depend on it
+            target_compile_options(LibGfx PRIVATE -fno-sanitize=address)
+        endif()
+    endif()
     target_link_libraries(LibGfx PRIVATE PkgConfig::Jxl)
 else()
     find_package(libjxl REQUIRED)

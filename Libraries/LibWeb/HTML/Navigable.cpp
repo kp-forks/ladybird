@@ -751,19 +751,21 @@ static GC::Ref<NavigationParams> create_navigation_params_from_a_srcdoc_resource
     //    FIXME: navigation timing type: navTimingType
     //    about base URL: entry's document state's about base URL
     //    user involvement: userInvolvement
-    auto navigation_params = vm.heap().allocate<NavigationParams>();
-    navigation_params->id = move(navigation_id);
-    navigation_params->navigable = navigable;
-    navigation_params->response = response;
-    navigation_params->coop_enforcement_result = move(coop_enforcement_result);
-    navigation_params->origin = move(response_origin);
-    navigation_params->policy_container = *policy_container;
-    navigation_params->final_sandboxing_flag_set = target_snapshot_params.sandboxing_flags;
-    navigation_params->opener_policy = move(coop);
-    navigation_params->about_base_url = entry->document_state()->about_base_url();
-    navigation_params->user_involvement = user_involvement;
-
-    return navigation_params;
+    return vm.heap().allocate<NavigationParams>(
+        move(navigation_id),
+        navigable,
+        nullptr,
+        response,
+        nullptr,
+        nullptr,
+        move(coop_enforcement_result),
+        nullptr,
+        move(response_origin),
+        *policy_container,
+        target_snapshot_params.sandboxing_flags,
+        move(coop),
+        entry->document_state()->about_base_url(),
+        user_involvement);
 }
 
 // https://html.spec.whatwg.org/multipage/browsing-the-web.html#create-navigation-params-by-fetching
@@ -1109,15 +1111,14 @@ static WebIDL::ExceptionOr<Navigable::NavigationParamsVariant> create_navigation
         // - initiator origin: responseOrigin
         // FIXME: - navigation timing type: navTimingType
         // - user involvement: userInvolvement
-        auto navigation_params = vm.heap().allocate<NonFetchSchemeNavigationParams>();
-        navigation_params->id = navigation_id;
-        navigation_params->navigable = navigable;
-        navigation_params->url = location_url.release_value().value();
-        navigation_params->target_snapshot_sandboxing_flags = target_snapshot_params.sandboxing_flags;
-        navigation_params->source_snapshot_has_transient_activation = source_snapshot_params.has_transient_activation;
-        navigation_params->initiator_origin = move(*response_origin);
-        navigation_params->user_involvement = user_involvement;
-        return navigation_params;
+        return vm.heap().allocate<NonFetchSchemeNavigationParams>(
+            navigation_id,
+            navigable,
+            location_url.release_value().value(),
+            target_snapshot_params.sandboxing_flags,
+            source_snapshot_params.has_transient_activation,
+            move(*response_origin),
+            user_involvement);
     }
 
     // 21. If any of the following are true:
@@ -1145,7 +1146,8 @@ static WebIDL::ExceptionOr<Navigable::NavigationParamsVariant> create_navigation
         [](DocumentState::Client) -> GC::Ptr<PolicyContainer> { return {}; });
     auto result_policy_container = determine_navigation_params_policy_container(*response_holder->response()->url(), realm.heap(), history_policy_container, source_snapshot_params.source_policy_container, {}, response_policy_container);
 
-    // 24. If navigable's container is an iframe, and response's timing allow passed flag is set, then set container's pending resource-timing start time to null.
+    // 24. If navigable's container is an iframe, and response's timing allow passed flag is set,
+    //     then set navigable's container's pending resource-timing start time to null.
     if (navigable->container() && is<HTML::HTMLIFrameElement>(*navigable->container()) && response_holder->response()->timing_allow_passed())
         static_cast<HTML::HTMLIFrameElement&>(*navigable->container()).set_pending_resource_start_time({});
 
@@ -1165,22 +1167,21 @@ static WebIDL::ExceptionOr<Navigable::NavigationParamsVariant> create_navigation
     //     FIXME: navigation timing type: navTimingType
     //     about base URL: entry's document state's about base URL
     //     user involvement: userInvolvement
-    auto navigation_params = vm.heap().allocate<NavigationParams>();
-    navigation_params->id = navigation_id;
-    navigation_params->navigable = navigable;
-    navigation_params->request = request;
-    navigation_params->response = *response_holder->response();
-    navigation_params->fetch_controller = fetch_controller;
-    navigation_params->commit_early_hints = move(commit_early_hints);
-    navigation_params->coop_enforcement_result = coop_enforcement_result;
-    navigation_params->reserved_environment = request->reserved_client();
-    navigation_params->origin = *response_origin;
-    navigation_params->policy_container = result_policy_container;
-    navigation_params->final_sandboxing_flag_set = final_sandbox_flags;
-    navigation_params->opener_policy = response_coop;
-    navigation_params->about_base_url = entry->document_state()->about_base_url();
-    navigation_params->user_involvement = user_involvement;
-    return navigation_params;
+    return vm.heap().allocate<NavigationParams>(
+        navigation_id,
+        navigable,
+        request,
+        *response_holder->response(),
+        fetch_controller,
+        move(commit_early_hints),
+        coop_enforcement_result,
+        request->reserved_client(),
+        *response_origin,
+        result_policy_container,
+        final_sandbox_flags,
+        response_coop,
+        entry->document_state()->about_base_url(),
+        user_involvement);
 }
 
 // https://html.spec.whatwg.org/multipage/browsing-the-web.html#attempt-to-populate-the-history-entry's-document
@@ -1233,15 +1234,14 @@ WebIDL::ExceptionOr<void> Navigable::populate_session_history_entry_document(
             // - initiator origin: entry's document state's initiator origin
             // FIXME: - navigation timing type: navTimingType
             // - user involvement: userInvolvement
-            auto non_fetching_scheme_navigation_params = vm().heap().allocate<NonFetchSchemeNavigationParams>();
-            non_fetching_scheme_navigation_params->id = navigation_id;
-            non_fetching_scheme_navigation_params->navigable = this;
-            non_fetching_scheme_navigation_params->url = entry->url();
-            non_fetching_scheme_navigation_params->target_snapshot_sandboxing_flags = target_snapshot_params.sandboxing_flags;
-            non_fetching_scheme_navigation_params->source_snapshot_has_transient_activation = source_snapshot_params.has_transient_activation;
-            non_fetching_scheme_navigation_params->initiator_origin = *entry->document_state()->initiator_origin();
-            non_fetching_scheme_navigation_params->user_involvement = user_involvement;
-            navigation_params = non_fetching_scheme_navigation_params;
+            navigation_params = vm().heap().allocate<NonFetchSchemeNavigationParams>(
+                navigation_id,
+                this,
+                entry->url(),
+                target_snapshot_params.sandboxing_flags,
+                source_snapshot_params.has_transient_activation,
+                *entry->document_state()->initiator_origin(),
+                user_involvement);
         }
     }
 
@@ -1891,21 +1891,21 @@ GC::Ptr<DOM::Document> Navigable::evaluate_javascript_url(URL::URL const& url, U
     //     FIXME: navigation timing type: "navigate"
     //     about base URL: targetNavigable's active document's about base URL
     //     user involvement: userInvolvement
-    auto navigation_params = vm.heap().allocate<NavigationParams>();
-    navigation_params->id = navigation_id;
-    navigation_params->navigable = this;
-    navigation_params->request = {};
-    navigation_params->response = response;
-    navigation_params->fetch_controller = nullptr;
-    navigation_params->commit_early_hints = nullptr;
-    navigation_params->coop_enforcement_result = move(coop_enforcement_result);
-    navigation_params->reserved_environment = {};
-    navigation_params->origin = new_document_origin;
-    navigation_params->policy_container = policy_container;
-    navigation_params->final_sandboxing_flag_set = final_sandbox_flags;
-    navigation_params->opener_policy = coop;
-    navigation_params->about_base_url = active_document()->about_base_url();
-    navigation_params->user_involvement = user_involvement;
+    auto navigation_params = vm.heap().allocate<NavigationParams>(
+        navigation_id,
+        this,
+        nullptr,
+        response,
+        nullptr,
+        nullptr,
+        move(coop_enforcement_result),
+        nullptr,
+        new_document_origin,
+        policy_container,
+        final_sandbox_flags,
+        coop,
+        active_document()->about_base_url(),
+        user_involvement);
 
     // 17. Return the result of loading an HTML document given navigationParams.
     return load_document(navigation_params);
@@ -2284,10 +2284,10 @@ CSSPixelPoint Navigable::to_top_level_position(CSSPixelPoint a_position)
 
 void Navigable::set_viewport_size(CSSPixelSize size)
 {
-    if (m_size == size)
+    if (m_viewport_size == size)
         return;
 
-    m_size = size;
+    m_viewport_size = size;
     if (auto document = active_document()) {
         // NOTE: Resizing the viewport changes the reference value for viewport-relative CSS lengths.
         document->invalidate_style(DOM::StyleInvalidationReason::NavigableSetViewportSize);

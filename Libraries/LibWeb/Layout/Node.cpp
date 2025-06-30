@@ -76,6 +76,9 @@ bool Node::is_out_of_flow(FormattingContext const& formatting_context) const
 
 bool Node::can_contain_boxes_with_position_absolute() const
 {
+    if (!is<Box>(*this))
+        return false;
+
     if (computed_values().position() != CSS::Positioning::Static)
         return true;
 
@@ -382,8 +385,9 @@ void NodeWithStyle::apply_style(CSS::ComputedProperties const& computed_style)
     //       m_font is used by Length::to_px() when resolving sizes against this layout node.
     //       That's why it has to be set before everything else.
     computed_values.set_font_list(computed_style.computed_font_list());
-    computed_values.set_font_size(computed_style.property(CSS::PropertyID::FontSize).as_length().length().to_px(*this));
-    computed_values.set_font_weight(round_to<int>(computed_style.property(CSS::PropertyID::FontWeight).as_number().number()));
+    computed_values.set_font_size(computed_style.font_size());
+    computed_values.set_font_weight(computed_style.property(CSS::PropertyID::FontWeight).to_font_weight());
+    computed_values.set_font_kerning(computed_style.font_kerning());
     computed_values.set_line_height(computed_style.line_height());
 
     computed_values.set_vertical_align(computed_style.vertical_align());
@@ -647,6 +651,7 @@ void NodeWithStyle::apply_style(CSS::ComputedProperties const& computed_style)
     computed_values.set_text_align(computed_style.text_align());
     computed_values.set_text_justify(computed_style.text_justify());
     computed_values.set_text_overflow(computed_style.text_overflow());
+    computed_values.set_text_rendering(computed_style.text_rendering());
 
     if (auto text_indent = computed_style.length_percentage(CSS::PropertyID::TextIndent); text_indent.has_value())
         computed_values.set_text_indent(text_indent.release_value());
@@ -920,6 +925,8 @@ void NodeWithStyle::apply_style(CSS::ComputedProperties const& computed_style)
     computed_values.set_row_gap(computed_style.gap_value(CSS::PropertyID::RowGap));
 
     computed_values.set_border_collapse(computed_style.border_collapse());
+
+    computed_values.set_empty_cells(computed_style.empty_cells());
 
     computed_values.set_table_layout(computed_style.table_layout());
 

@@ -14,13 +14,11 @@
 #include <LibWeb/Layout/Box.h>
 #include <LibWeb/Painting/BackgroundPainting.h>
 #include <LibWeb/Painting/BorderPainting.h>
-#include <LibWeb/Painting/BorderRadiusCornerClipper.h>
 #include <LibWeb/Painting/BoxModelMetrics.h>
 #include <LibWeb/Painting/ClipFrame.h>
 #include <LibWeb/Painting/ClippableAndScrollable.h>
 #include <LibWeb/Painting/Paintable.h>
 #include <LibWeb/Painting/PaintableFragment.h>
-#include <LibWeb/Painting/ShadowPainting.h>
 
 namespace Web::Painting {
 
@@ -117,15 +115,11 @@ public:
 
     [[nodiscard]] bool has_css_transform() const
     {
-        if (!computed_values().transformations().is_empty())
-            return true;
-        if (computed_values().rotate().has_value())
-            return true;
-        if (computed_values().translate().has_value())
-            return true;
-        if (computed_values().scale().has_value())
-            return true;
-        return false;
+        auto const& computed_values = this->computed_values();
+        return !computed_values.transformations().is_empty()
+            || computed_values.rotate().has_value()
+            || computed_values.translate().has_value()
+            || computed_values.scale().has_value();
     }
 
     [[nodiscard]] Optional<CSSPixelRect> scrollable_overflow_rect() const
@@ -147,6 +141,9 @@ public:
 
     virtual void apply_clip_overflow_rect(PaintContext&, PaintPhase) const override;
     virtual void clear_clip_overflow_rect(PaintContext&, PaintPhase) const override;
+
+    virtual void apply_own_clip_rect(PaintContext&, PaintPhase) const override;
+    virtual void clear_own_clip_rect(PaintContext&, PaintPhase) const override;
 
     [[nodiscard]] virtual TraversalDecision hit_test(CSSPixelPoint position, HitTestType type, Function<TraversalDecision(HitTestResult)> const& callback) const override;
     Optional<HitTestResult> hit_test(CSSPixelPoint, HitTestType) const;
@@ -285,7 +282,7 @@ private:
     virtual DispatchEventOfSameName handle_mousemove(Badge<EventHandler>, CSSPixelPoint, unsigned buttons, unsigned modifiers) override;
 
     bool scrollbar_contains_mouse_position(ScrollDirection, CSSPixelPoint);
-    void scroll_to_mouse_postion(CSSPixelPoint);
+    void scroll_to_mouse_position(CSSPixelPoint);
 
     OwnPtr<StackingContext> m_stacking_context;
 
@@ -311,7 +308,7 @@ private:
     Optional<BordersData> m_outline_data;
     CSSPixels m_outline_offset { 0 };
 
-    Optional<CSSPixelPoint> m_last_mouse_tracking_position;
+    Optional<CSSPixels> m_scroll_thumb_grab_position;
     Optional<ScrollDirection> m_scroll_thumb_dragging_direction;
     bool m_draw_enlarged_horizontal_scrollbar { false };
     bool m_draw_enlarged_vertical_scrollbar { false };

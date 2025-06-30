@@ -9,6 +9,7 @@
 #include <LibGfx/SkiaBackendContext.h>
 #include <LibWeb/Bindings/MainThreadVM.h>
 #include <LibWeb/DOM/Document.h>
+#include <LibWeb/Geolocation/GeolocationCoordinates.h>
 #include <LibWeb/HTML/BrowsingContextGroup.h>
 #include <LibWeb/HTML/DocumentState.h>
 #include <LibWeb/HTML/Navigation.h>
@@ -50,20 +51,23 @@ static RefPtr<Gfx::SkiaBackendContext> get_skia_backend_context()
 
 TraversableNavigable::TraversableNavigable(GC::Ref<Page> page)
     : Navigable(page)
+    , m_storage_shed(StorageAPI::StorageShed::create(page->heap()))
     , m_session_history_traversal_queue(vm().heap().allocate<SessionHistoryTraversalQueue>())
 {
-    auto display_list_player_type = page->client().display_list_player_type();
-    OwnPtr<Painting::DisplayListPlayerSkia> skia_player;
-    if (display_list_player_type == DisplayListPlayerType::SkiaGPUIfAvailable) {
-        m_skia_backend_context = get_skia_backend_context();
-        skia_player = make<Painting::DisplayListPlayerSkia>(m_skia_backend_context);
-    } else {
-        skia_player = make<Painting::DisplayListPlayerSkia>();
-    }
+    if (!page->client().is_svg_page_client()) {
+        auto display_list_player_type = page->client().display_list_player_type();
+        OwnPtr<Painting::DisplayListPlayerSkia> skia_player;
+        if (display_list_player_type == DisplayListPlayerType::SkiaGPUIfAvailable) {
+            m_skia_backend_context = get_skia_backend_context();
+            skia_player = make<Painting::DisplayListPlayerSkia>(m_skia_backend_context);
+        } else {
+            skia_player = make<Painting::DisplayListPlayerSkia>();
+        }
 
-    m_rendering_thread.set_skia_player(move(skia_player));
-    m_rendering_thread.set_skia_backend_context(m_skia_backend_context);
-    m_rendering_thread.start(display_list_player_type);
+        m_rendering_thread.set_skia_player(move(skia_player));
+        m_rendering_thread.set_skia_backend_context(m_skia_backend_context);
+        m_rendering_thread.start(display_list_player_type);
+    }
 }
 
 TraversableNavigable::~TraversableNavigable() = default;
@@ -71,8 +75,11 @@ TraversableNavigable::~TraversableNavigable() = default;
 void TraversableNavigable::visit_edges(Cell::Visitor& visitor)
 {
     Base::visit_edges(visitor);
+    if (m_emulated_position_data.has<GC::Ref<Geolocation::GeolocationCoordinates>>())
+        visitor.visit(m_emulated_position_data.get<GC::Ref<Geolocation::GeolocationCoordinates>>());
     visitor.visit(m_session_history_entries);
     visitor.visit(m_session_history_traversal_queue);
+    visitor.visit(m_storage_shed);
 }
 
 static OrderedHashTable<TraversableNavigable*>& user_agent_top_level_traversable_set()
@@ -159,6 +166,24 @@ WebIDL::ExceptionOr<GC::Ref<TraversableNavigable>> TraversableNavigable::create_
     // 1. Let traversable be the result of creating a new top-level traversable given null and the empty string.
     auto traversable = TRY(create_a_new_top_level_traversable(page, nullptr, {}));
     page->set_top_level_traversable(traversable);
+
+    // AD-HOC: Set the default top-level emulated position data for the traversable, which points to Market St. SF.
+    // FIXME: We should not emulate by default, but ask the user what to do. E.g. disable Geolocation, set an emulated
+    //        position, or allow Ladybird to engage with the system's geolocation services. This is completely separate
+    //        from the permission model for "powerful features" such as Geolocation.
+    auto& realm = traversable->active_document()->realm();
+    auto emulated_position_coordinates = realm.create<Geolocation::GeolocationCoordinates>(
+        realm,
+        Geolocation::CoordinatesData {
+            .accuracy = 100.0,
+            .latitude = 37.7647658,
+            .longitude = -122.4345892,
+            .altitude = 60.0,
+            .altitude_accuracy = 10.0,
+            .heading = 0.0,
+            .speed = 0.0,
+        });
+    traversable->set_emulated_position_data(emulated_position_coordinates);
 
     // AD-HOC: Mark the about:blank document as finished parsing if we're only going to about:blank
     //         Skip the initial navigation as well. This matches the behavior of the window open steps.
@@ -1346,7 +1371,7 @@ void TraversableNavigable::set_system_visibility_state(VisibilityState visibilit
         return;
     m_system_visibility_state = visibility_state;
 
-    // When a user-agent determines that the system visibility state for
+    // When a user agent determines that the system visibility state for
     // traversable navigable traversable has changed to newState, it must run the following steps:
 
     // 1. Let navigables be the inclusive descendant navigables of traversable's active document.
@@ -1428,6 +1453,20 @@ void TraversableNavigable::start_display_list_rendering(NonnullRefPtr<Painting::
 {
     auto scroll_state_snapshot = active_document()->paintable()->scroll_state().snapshot();
     m_rendering_thread.enqueue_rendering_task(move(display_list), move(scroll_state_snapshot), move(backing_store), move(callback));
+}
+
+// https://w3c.github.io/geolocation/#dfn-emulated-position-data
+Geolocation::EmulatedPositionData const& TraversableNavigable::emulated_position_data() const
+{
+    VERIFY(is_top_level_traversable());
+    return m_emulated_position_data;
+}
+
+// https://w3c.github.io/geolocation/#dfn-emulated-position-data
+void TraversableNavigable::set_emulated_position_data(Geolocation::EmulatedPositionData data)
+{
+    VERIFY(is_top_level_traversable());
+    m_emulated_position_data = data;
 }
 
 }
