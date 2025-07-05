@@ -7,7 +7,6 @@ set(SOURCES
     ConstrainedStream.cpp
     CountingStream.cpp
     Error.cpp
-    FloatingPointStringConversions.cpp
     FlyString.cpp
     Format.cpp
     GenericLexer.cpp
@@ -25,6 +24,7 @@ set(SOURCES
     String.cpp
     StringBase.cpp
     StringBuilder.cpp
+    StringConversions.cpp
     StringFloatingPointConversions.cpp
     StringUtils.cpp
     StringView.cpp
@@ -36,12 +36,15 @@ set(SOURCES
 )
 
 if (WIN32)
-    list(APPEND SOURCES LexicalPathWindows.cpp)
+    list(APPEND SOURCES
+        LexicalPathWindows.cpp
+        DemangleWindows.cpp
+    )
 else()
     list(APPEND SOURCES LexicalPath.cpp)
 endif()
 
-serenity_lib(AK ak)
+ladybird_lib(AK ak)
 
 include(stacktrace)
 configure_file(Backtrace.h.in Backtrace.h @ONLY)
@@ -73,6 +76,12 @@ if (WIN32)
     # FIXME: Windows on ARM
     target_link_libraries(AK PRIVATE clang_rt.builtins-x86_64.lib)
     target_link_libraries(AK PRIVATE Bcrypt.lib)
+    target_link_libraries(AK PRIVATE delayimp.lib)
+    set(DELAYLOAD_DBGHLP_VISIBILITY PRIVATE)
+    if (NOT BUILD_SHARED_LIBS)
+        set(DELAYLOAD_DBGHLP_VISIBILITY INTERFACE)
+    endif()
+    target_link_options(AK ${DELAYLOAD_DBGHLP_VISIBILITY} /DELAYLOAD:dbghelp.dll)
 elseif (APPLE)
     set(ASSERTION_HANDLER_VISIBILITY PRIVATE)
     if (NOT BUILD_SHARED_LIBS)

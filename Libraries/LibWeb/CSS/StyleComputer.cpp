@@ -627,108 +627,6 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
         return;
     }
 
-    auto map_logical_property_to_real_property = [](PropertyID property_id) -> Optional<PropertyID> {
-        // FIXME: Honor writing-mode, direction and text-orientation.
-        switch (property_id) {
-        case PropertyID::BlockSize:
-            return PropertyID::Height;
-        case PropertyID::BorderBlockEndColor:
-            return PropertyID::BorderBottomColor;
-        case PropertyID::BorderBlockEndStyle:
-            return PropertyID::BorderBottomStyle;
-        case PropertyID::BorderBlockEndWidth:
-            return PropertyID::BorderBottomWidth;
-        case PropertyID::BorderBlockStartColor:
-            return PropertyID::BorderTopColor;
-        case PropertyID::BorderBlockStartStyle:
-            return PropertyID::BorderTopStyle;
-        case PropertyID::BorderBlockStartWidth:
-            return PropertyID::BorderTopWidth;
-        case PropertyID::BorderInlineStartColor:
-            return PropertyID::BorderLeftColor;
-        case PropertyID::BorderInlineStartStyle:
-            return PropertyID::BorderLeftStyle;
-        case PropertyID::BorderInlineStartWidth:
-            return PropertyID::BorderLeftWidth;
-        case PropertyID::BorderInlineEndColor:
-            return PropertyID::BorderRightColor;
-        case PropertyID::BorderInlineEndStyle:
-            return PropertyID::BorderRightStyle;
-        case PropertyID::BorderInlineEndWidth:
-            return PropertyID::BorderRightWidth;
-        case PropertyID::MarginBlockStart:
-            return PropertyID::MarginTop;
-        case PropertyID::MarginBlockEnd:
-            return PropertyID::MarginBottom;
-        case PropertyID::MarginInlineStart:
-            return PropertyID::MarginLeft;
-        case PropertyID::MarginInlineEnd:
-            return PropertyID::MarginRight;
-        case PropertyID::PaddingBlockStart:
-            return PropertyID::PaddingTop;
-        case PropertyID::PaddingBlockEnd:
-            return PropertyID::PaddingBottom;
-        case PropertyID::PaddingInlineStart:
-            return PropertyID::PaddingLeft;
-        case PropertyID::PaddingInlineEnd:
-            return PropertyID::PaddingRight;
-        case PropertyID::InlineSize:
-            return PropertyID::Width;
-        case PropertyID::InsetBlockStart:
-            return PropertyID::Top;
-        case PropertyID::InsetBlockEnd:
-            return PropertyID::Bottom;
-        case PropertyID::InsetInlineStart:
-            return PropertyID::Left;
-        case PropertyID::InsetInlineEnd:
-            return PropertyID::Right;
-        default:
-            return {};
-        }
-    };
-
-    struct StartAndEndPropertyIDs {
-        PropertyID start;
-        PropertyID end;
-    };
-    auto map_logical_property_to_real_properties = [](PropertyID property_id) -> Optional<StartAndEndPropertyIDs> {
-        // FIXME: Honor writing-mode, direction and text-orientation.
-        switch (property_id) {
-        case PropertyID::MarginBlock:
-            return StartAndEndPropertyIDs { PropertyID::MarginTop, PropertyID::MarginBottom };
-        case PropertyID::MarginInline:
-            return StartAndEndPropertyIDs { PropertyID::MarginLeft, PropertyID::MarginRight };
-        case PropertyID::PaddingBlock:
-            return StartAndEndPropertyIDs { PropertyID::PaddingTop, PropertyID::PaddingBottom };
-        case PropertyID::PaddingInline:
-            return StartAndEndPropertyIDs { PropertyID::PaddingLeft, PropertyID::PaddingRight };
-        case PropertyID::InsetBlock:
-            return StartAndEndPropertyIDs { PropertyID::Top, PropertyID::Bottom };
-        case PropertyID::InsetInline:
-            return StartAndEndPropertyIDs { PropertyID::Left, PropertyID::Right };
-        default:
-            return {};
-        }
-    };
-
-    if (auto real_property_id = map_logical_property_to_real_property(property_id); real_property_id.has_value()) {
-        for_each_property_expanding_shorthands(real_property_id.value(), value, set_longhand_property);
-        return;
-    }
-
-    if (auto real_property_ids = map_logical_property_to_real_properties(property_id); real_property_ids.has_value()) {
-        if (value.is_value_list() && value.as_value_list().size() == 2) {
-            auto const& start = value.as_value_list().values()[0];
-            auto const& end = value.as_value_list().values()[1];
-            for_each_property_expanding_shorthands(real_property_ids->start, start, set_longhand_property);
-            for_each_property_expanding_shorthands(real_property_ids->end, end, set_longhand_property);
-            return;
-        }
-        for_each_property_expanding_shorthands(real_property_ids->start, value, set_longhand_property);
-        for_each_property_expanding_shorthands(real_property_ids->end, value, set_longhand_property);
-        return;
-    }
-
     if (value.is_shorthand()) {
         auto& shorthand_value = value.as_shorthand();
         auto& properties = shorthand_value.sub_properties();
@@ -759,6 +657,16 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
             set_longhand_property(right_property, values[0]);
             set_longhand_property(bottom_property, values[0]);
             set_longhand_property(left_property, values[0]);
+        }
+    };
+
+    auto assign_start_and_end_values = [&](PropertyID start_property, PropertyID end_property, auto const& values) {
+        if (values.is_value_list()) {
+            set_longhand_property(start_property, value.as_value_list().values()[0]);
+            set_longhand_property(end_property, value.as_value_list().values()[1]);
+        } else {
+            set_longhand_property(start_property, value);
+            set_longhand_property(end_property, value);
         }
     };
 
@@ -859,6 +767,16 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
         return;
     }
 
+    if (property_id == CSS::PropertyID::InsetBlock) {
+        assign_start_and_end_values(PropertyID::InsetBlockStart, PropertyID::InsetBlockEnd, value);
+        return;
+    }
+
+    if (property_id == CSS::PropertyID::InsetInline) {
+        assign_start_and_end_values(PropertyID::InsetInlineStart, PropertyID::InsetInlineEnd, value);
+        return;
+    }
+
     if (property_id == CSS::PropertyID::Margin) {
         if (value.is_value_list()) {
             auto const& values_list = value.as_value_list();
@@ -870,6 +788,16 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
         set_longhand_property(CSS::PropertyID::MarginRight, value);
         set_longhand_property(CSS::PropertyID::MarginBottom, value);
         set_longhand_property(CSS::PropertyID::MarginLeft, value);
+        return;
+    }
+
+    if (property_id == CSS::PropertyID::MarginBlock) {
+        assign_start_and_end_values(PropertyID::MarginBlockStart, PropertyID::MarginBlockEnd, value);
+        return;
+    }
+
+    if (property_id == CSS::PropertyID::MarginInline) {
+        assign_start_and_end_values(PropertyID::MarginInlineStart, PropertyID::MarginInlineEnd, value);
         return;
     }
 
@@ -887,6 +815,16 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
         return;
     }
 
+    if (property_id == CSS::PropertyID::PaddingBlock) {
+        assign_start_and_end_values(PropertyID::PaddingBlockStart, PropertyID::PaddingBlockEnd, value);
+        return;
+    }
+
+    if (property_id == CSS::PropertyID::PaddingInline) {
+        assign_start_and_end_values(PropertyID::PaddingInlineStart, PropertyID::PaddingInlineEnd, value);
+        return;
+    }
+
     if (property_id == CSS::PropertyID::Gap) {
         if (value.is_value_list()) {
             auto const& values_list = value.as_value_list();
@@ -899,86 +837,40 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
         return;
     }
 
-    if (property_id == CSS::PropertyID::MaxInlineSize || property_id == CSS::PropertyID::MinInlineSize) {
-        // FIXME: Use writing-mode to determine if we should set width or height.
-        bool is_horizontal = true;
-
-        if (is_horizontal) {
-            if (property_id == CSS::PropertyID::MaxInlineSize) {
-                set_longhand_property(CSS::PropertyID::MaxWidth, value);
-            } else {
-                set_longhand_property(CSS::PropertyID::MinWidth, value);
-            }
-        } else {
-            if (property_id == CSS::PropertyID::MaxInlineSize) {
-                set_longhand_property(CSS::PropertyID::MaxHeight, value);
-            } else {
-                set_longhand_property(CSS::PropertyID::MinHeight, value);
-            }
-        }
-        return;
-    }
-
-    if (property_id == CSS::PropertyID::MaxBlockSize || property_id == CSS::PropertyID::MinBlockSize) {
-        // FIXME: Use writing-mode to determine if we should set width or height.
-        bool is_horizontal = true;
-
-        if (is_horizontal) {
-            if (property_id == CSS::PropertyID::MaxBlockSize) {
-                set_longhand_property(CSS::PropertyID::MaxHeight, value);
-            } else {
-                set_longhand_property(CSS::PropertyID::MinHeight, value);
-            }
-        } else {
-            if (property_id == CSS::PropertyID::MaxBlockSize) {
-                set_longhand_property(CSS::PropertyID::MaxWidth, value);
-            } else {
-                set_longhand_property(CSS::PropertyID::MinWidth, value);
-            }
-        }
-        return;
-    }
-
     if (property_id == CSS::PropertyID::Transition) {
-        if (!value.is_transition()) {
+        if (value.to_keyword() == Keyword::None) {
             // Handle `none` as a shorthand for `all 0s ease 0s`.
             set_longhand_property(CSS::PropertyID::TransitionProperty, CSSKeywordValue::create(Keyword::All));
             set_longhand_property(CSS::PropertyID::TransitionDuration, TimeStyleValue::create(CSS::Time::make_seconds(0)));
             set_longhand_property(CSS::PropertyID::TransitionDelay, TimeStyleValue::create(CSS::Time::make_seconds(0)));
             set_longhand_property(CSS::PropertyID::TransitionTimingFunction, EasingStyleValue::create(EasingStyleValue::CubicBezier::ease()));
             set_longhand_property(CSS::PropertyID::TransitionBehavior, CSSKeywordValue::create(Keyword::Normal));
-            return;
-        }
-        auto const& transitions = value.as_transition().transitions();
-        Array<Vector<ValueComparingNonnullRefPtr<CSSStyleValue const>>, 5> transition_values;
-        for (auto const& transition : transitions) {
-            transition_values[0].append(*transition.property_name);
-            transition_values[1].append(transition.duration.as_style_value());
-            transition_values[2].append(transition.delay.as_style_value());
-            if (transition.easing)
-                transition_values[3].append(*transition.easing);
-            transition_values[4].append(CSSKeywordValue::create(to_keyword(transition.transition_behavior)));
+        } else if (value.is_transition()) {
+            auto const& transitions = value.as_transition().transitions();
+            Array<Vector<ValueComparingNonnullRefPtr<CSSStyleValue const>>, 5> transition_values;
+            for (auto const& transition : transitions) {
+                transition_values[0].append(*transition.property_name);
+                transition_values[1].append(transition.duration.as_style_value());
+                transition_values[2].append(transition.delay.as_style_value());
+                if (transition.easing)
+                    transition_values[3].append(*transition.easing);
+                transition_values[4].append(CSSKeywordValue::create(to_keyword(transition.transition_behavior)));
+            }
+
+            set_longhand_property(CSS::PropertyID::TransitionProperty, StyleValueList::create(move(transition_values[0]), StyleValueList::Separator::Comma));
+            set_longhand_property(CSS::PropertyID::TransitionDuration, StyleValueList::create(move(transition_values[1]), StyleValueList::Separator::Comma));
+            set_longhand_property(CSS::PropertyID::TransitionDelay, StyleValueList::create(move(transition_values[2]), StyleValueList::Separator::Comma));
+            set_longhand_property(CSS::PropertyID::TransitionTimingFunction, StyleValueList::create(move(transition_values[3]), StyleValueList::Separator::Comma));
+            set_longhand_property(CSS::PropertyID::TransitionBehavior, StyleValueList::create(move(transition_values[4]), StyleValueList::Separator::Comma));
+        } else {
+            set_longhand_property(CSS::PropertyID::TransitionProperty, value);
+            set_longhand_property(CSS::PropertyID::TransitionDuration, value);
+            set_longhand_property(CSS::PropertyID::TransitionDelay, value);
+            set_longhand_property(CSS::PropertyID::TransitionTimingFunction, value);
+            set_longhand_property(CSS::PropertyID::TransitionBehavior, value);
         }
 
-        set_longhand_property(CSS::PropertyID::TransitionProperty, StyleValueList::create(move(transition_values[0]), StyleValueList::Separator::Comma));
-        set_longhand_property(CSS::PropertyID::TransitionDuration, StyleValueList::create(move(transition_values[1]), StyleValueList::Separator::Comma));
-        set_longhand_property(CSS::PropertyID::TransitionDelay, StyleValueList::create(move(transition_values[2]), StyleValueList::Separator::Comma));
-        set_longhand_property(CSS::PropertyID::TransitionTimingFunction, StyleValueList::create(move(transition_values[3]), StyleValueList::Separator::Comma));
-        set_longhand_property(CSS::PropertyID::TransitionBehavior, StyleValueList::create(move(transition_values[4]), StyleValueList::Separator::Comma));
         return;
-    }
-
-    if (property_id == CSS::PropertyID::Float) {
-        auto keyword = value.to_keyword();
-
-        // FIXME: Honor writing-mode, direction and text-orientation.
-        if (keyword == Keyword::InlineStart) {
-            set_longhand_property(CSS::PropertyID::Float, CSSKeywordValue::create(Keyword::Left));
-            return;
-        } else if (keyword == Keyword::InlineEnd) {
-            set_longhand_property(CSS::PropertyID::Float, CSSKeywordValue::create(Keyword::Right));
-            return;
-        }
     }
 
     if (property_is_shorthand(property_id)) {
@@ -996,54 +888,392 @@ void StyleComputer::for_each_property_expanding_shorthands(PropertyID property_i
     set_longhand_property(property_id, value);
 }
 
-void StyleComputer::set_property_expanding_shorthands(
-    CascadedProperties& cascaded_properties,
-    PropertyID property_id,
-    CSSStyleValue const& value,
-    GC::Ptr<CSSStyleDeclaration const> declaration,
-    CascadeOrigin cascade_origin,
-    Important important,
-    Optional<FlyString> layer_name)
+// https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical
+PropertyID StyleComputer::map_logical_alias_to_physical_property_id(PropertyID property_id, LogicalAliasMappingContext mapping_context)
 {
-    for_each_property_expanding_shorthands(property_id, value, [&](PropertyID longhand_id, CSSStyleValue const& longhand_value) {
-        if (longhand_value.is_revert()) {
-            cascaded_properties.revert_property(longhand_id, important, cascade_origin);
-        } else if (longhand_value.is_revert_layer()) {
-            cascaded_properties.revert_layer_property(longhand_id, important, layer_name);
-        } else {
-            cascaded_properties.set_property(longhand_id, longhand_value, important, cascade_origin, layer_name, declaration);
+    // FIXME: Note: The used direction depends on the computed writing-mode and text-orientation: in vertical writing
+    //              modes, a text-orientation value of upright forces the used direction to ltr.
+    auto used_direction = mapping_context.direction;
+    switch (property_id) {
+    case PropertyID::BlockSize:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::Height;
+        return PropertyID::Width;
+    case PropertyID::BorderBlockEndColor:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::BorderBottomColor;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::BorderLeftColor;
+        return PropertyID::BorderRightColor;
+    case PropertyID::BorderBlockEndStyle:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::BorderBottomStyle;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::BorderLeftStyle;
+        return PropertyID::BorderRightStyle;
+    case PropertyID::BorderBlockEndWidth:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::BorderBottomWidth;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::BorderLeftWidth;
+        return PropertyID::BorderRightWidth;
+    case PropertyID::BorderBlockStartColor:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::BorderTopColor;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::BorderRightColor;
+        return PropertyID::BorderLeftColor;
+    case PropertyID::BorderBlockStartStyle:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::BorderTopStyle;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::BorderRightStyle;
+        return PropertyID::BorderLeftStyle;
+    case PropertyID::BorderBlockStartWidth:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::BorderTopWidth;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::BorderRightWidth;
+        return PropertyID::BorderLeftWidth;
+    case PropertyID::BorderEndEndRadius:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomRightRadius;
+            return PropertyID::BorderBottomLeftRadius;
         }
-    });
-}
 
-void StyleComputer::set_all_properties(
-    CascadedProperties& cascaded_properties,
-    DOM::Element& element,
-    Optional<PseudoElement> pseudo_element,
-    CSSStyleValue const& value,
-    DOM::Document& document,
-    GC::Ptr<CSSStyleDeclaration const> declaration,
-    CascadeOrigin cascade_origin,
-    Important important,
-    Optional<FlyString> layer_name) const
-{
-    for (auto i = to_underlying(CSS::first_longhand_property_id); i <= to_underlying(CSS::last_longhand_property_id); ++i) {
-        auto property_id = (CSS::PropertyID)i;
-
-        if (value.is_revert()) {
-            cascaded_properties.revert_property(property_id, important, cascade_origin);
-            continue;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomLeftRadius;
+            return PropertyID::BorderTopLeftRadius;
         }
 
-        if (value.is_revert_layer()) {
-            cascaded_properties.revert_layer_property(property_id, important, layer_name);
-            continue;
+        if (mapping_context.writing_mode == WritingMode::VerticalLr) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomRightRadius;
+            return PropertyID::BorderTopRightRadius;
         }
 
-        NonnullRefPtr<CSSStyleValue const> property_value = value;
-        if (property_value->is_unresolved())
-            property_value = Parser::Parser::resolve_unresolved_style_value(Parser::ParsingParams { document }, element, pseudo_element, property_id, property_value->as_unresolved());
-        set_property_expanding_shorthands(cascaded_properties, property_id, property_value, declaration, cascade_origin, important, layer_name);
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderTopRightRadius;
+        return PropertyID::BorderBottomRightRadius;
+    case PropertyID::BorderEndStartRadius:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomLeftRadius;
+            return PropertyID::BorderBottomRightRadius;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopLeftRadius;
+            return PropertyID::BorderBottomLeftRadius;
+        }
+
+        if (mapping_context.writing_mode == WritingMode::VerticalLr) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopRightRadius;
+            return PropertyID::BorderBottomRightRadius;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderBottomRightRadius;
+        return PropertyID::BorderTopRightRadius;
+    case PropertyID::BorderInlineStartColor:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderLeftColor;
+            return PropertyID::BorderRightColor;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopColor;
+            return PropertyID::BorderBottomColor;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderBottomColor;
+        return PropertyID::BorderTopColor;
+    case PropertyID::BorderInlineStartStyle:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderLeftStyle;
+            return PropertyID::BorderRightStyle;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopStyle;
+            return PropertyID::BorderBottomStyle;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderBottomStyle;
+        return PropertyID::BorderTopStyle;
+
+    case PropertyID::BorderInlineStartWidth:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderLeftWidth;
+            return PropertyID::BorderRightWidth;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopWidth;
+            return PropertyID::BorderBottomWidth;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderBottomWidth;
+        return PropertyID::BorderTopWidth;
+    case PropertyID::BorderInlineEndColor:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderRightColor;
+            return PropertyID::BorderLeftColor;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomColor;
+            return PropertyID::BorderTopColor;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderTopColor;
+        return PropertyID::BorderBottomColor;
+    case PropertyID::BorderInlineEndStyle:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderRightStyle;
+            return PropertyID::BorderLeftStyle;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomStyle;
+            return PropertyID::BorderTopStyle;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderTopStyle;
+        return PropertyID::BorderBottomStyle;
+    case PropertyID::BorderInlineEndWidth:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderRightWidth;
+            return PropertyID::BorderLeftWidth;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomWidth;
+            return PropertyID::BorderTopWidth;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderTopWidth;
+        return PropertyID::BorderBottomWidth;
+    case PropertyID::BorderStartEndRadius:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopRightRadius;
+            return PropertyID::BorderTopLeftRadius;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomRightRadius;
+            return PropertyID::BorderTopRightRadius;
+        }
+
+        if (mapping_context.writing_mode == WritingMode::VerticalLr) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderBottomLeftRadius;
+            return PropertyID::BorderTopLeftRadius;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderTopLeftRadius;
+        return PropertyID::BorderBottomLeftRadius;
+    case PropertyID::BorderStartStartRadius:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopLeftRadius;
+            return PropertyID::BorderTopRightRadius;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopRightRadius;
+            return PropertyID::BorderBottomRightRadius;
+        }
+
+        if (mapping_context.writing_mode == WritingMode::VerticalLr) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::BorderTopLeftRadius;
+            return PropertyID::BorderBottomLeftRadius;
+        }
+        if (used_direction == Direction::Ltr)
+            return PropertyID::BorderBottomLeftRadius;
+        return PropertyID::BorderTopLeftRadius;
+    case PropertyID::MarginBlockStart:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::MarginTop;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::MarginRight;
+        return PropertyID::MarginLeft;
+    case PropertyID::MarginBlockEnd:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::MarginBottom;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::MarginLeft;
+        return PropertyID::MarginRight;
+    case PropertyID::MarginInlineStart:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::MarginLeft;
+            return PropertyID::MarginRight;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::MarginTop;
+            return PropertyID::MarginBottom;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::MarginBottom;
+        return PropertyID::MarginTop;
+    case PropertyID::MarginInlineEnd:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::MarginRight;
+            return PropertyID::MarginLeft;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::MarginBottom;
+            return PropertyID::MarginTop;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::MarginTop;
+        return PropertyID::MarginBottom;
+    case PropertyID::MaxBlockSize:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::MaxHeight;
+        return PropertyID::MaxWidth;
+    case PropertyID::MaxInlineSize:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::MaxWidth;
+        return PropertyID::MaxHeight;
+    case PropertyID::MinBlockSize:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::MinHeight;
+        return PropertyID::MinWidth;
+    case PropertyID::MinInlineSize:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::MinWidth;
+        return PropertyID::MinHeight;
+    case PropertyID::PaddingBlockStart:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::PaddingTop;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::PaddingRight;
+        return PropertyID::PaddingLeft;
+    case PropertyID::PaddingBlockEnd:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::PaddingBottom;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::PaddingLeft;
+        return PropertyID::PaddingRight;
+    case PropertyID::PaddingInlineStart:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::PaddingLeft;
+            return PropertyID::PaddingRight;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::PaddingTop;
+            return PropertyID::PaddingBottom;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::PaddingBottom;
+        return PropertyID::PaddingTop;
+    case PropertyID::PaddingInlineEnd:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::PaddingRight;
+            return PropertyID::PaddingLeft;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::PaddingBottom;
+            return PropertyID::PaddingTop;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::PaddingTop;
+        return PropertyID::PaddingBottom;
+    case PropertyID::InlineSize:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::Width;
+        return PropertyID::Height;
+    case PropertyID::InsetBlockStart:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::Top;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::Right;
+        return PropertyID::Left;
+    case PropertyID::InsetBlockEnd:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb)
+            return PropertyID::Bottom;
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl))
+            return PropertyID::Left;
+        return PropertyID::Right;
+    case PropertyID::InsetInlineStart:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::Left;
+            return PropertyID::Right;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::Top;
+            return PropertyID::Bottom;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::Bottom;
+        return PropertyID::Top;
+    case PropertyID::InsetInlineEnd:
+        if (mapping_context.writing_mode == WritingMode::HorizontalTb) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::Right;
+            return PropertyID::Left;
+        }
+
+        if (first_is_one_of(mapping_context.writing_mode, WritingMode::VerticalRl, WritingMode::SidewaysRl, WritingMode::VerticalLr)) {
+            if (used_direction == Direction::Ltr)
+                return PropertyID::Bottom;
+            return PropertyID::Top;
+        }
+
+        if (used_direction == Direction::Ltr)
+            return PropertyID::Top;
+        return PropertyID::Bottom;
+    default:
+        VERIFY(!property_is_logical_alias(property_id));
+        return property_id;
     }
 }
 
@@ -1054,7 +1284,8 @@ void StyleComputer::cascade_declarations(
     Vector<MatchingRule const*> const& matching_rules,
     CascadeOrigin cascade_origin,
     Important important,
-    Optional<FlyString> layer_name) const
+    Optional<FlyString> layer_name,
+    Optional<LogicalAliasMappingContext> logical_alias_mapping_context) const
 {
     auto seen_properties = MUST(Bitmap::create(to_underlying(last_property_id) + 1, false));
     auto cascade_style_declaration = [&](CSSStyleProperties const& declaration) {
@@ -1091,12 +1322,6 @@ void StyleComputer::cascade_declarations(
                 }
             }
 
-            if (property.property_id == PropertyID::All) {
-                set_all_properties(cascaded_properties, element, pseudo_element, property_value, m_document, &declaration, cascade_origin, important, layer_name);
-                continue;
-            }
-
-            // NOTE: This is a duplicate of set_property_expanding_shorthands() with some extra checks.
             for_each_property_expanding_shorthands(property.property_id, property_value, [&](PropertyID longhand_id, CSSStyleValue const& longhand_value) {
                 // If we're a PSV that's already been seen, that should mean that our shorthand already got
                 // resolved and gave us a value, so we don't want to overwrite it with a PSV.
@@ -1104,12 +1329,22 @@ void StyleComputer::cascade_declarations(
                     return;
                 seen_properties.set(to_underlying(longhand_id), true);
 
-                if (longhand_value.is_revert()) {
-                    cascaded_properties.revert_property(longhand_id, important, cascade_origin);
-                } else if (longhand_value.is_revert_layer()) {
-                    cascaded_properties.revert_layer_property(longhand_id, important, layer_name);
+                PropertyID physical_property_id;
+
+                if (property_is_logical_alias(longhand_id)) {
+                    if (!logical_alias_mapping_context.has_value())
+                        return;
+                    physical_property_id = map_logical_alias_to_physical_property_id(longhand_id, logical_alias_mapping_context.value());
                 } else {
-                    cascaded_properties.set_property(longhand_id, longhand_value, important, cascade_origin, layer_name, declaration);
+                    physical_property_id = longhand_id;
+                }
+
+                if (longhand_value.is_revert()) {
+                    cascaded_properties.revert_property(physical_property_id, important, cascade_origin);
+                } else if (longhand_value.is_revert_layer()) {
+                    cascaded_properties.revert_layer_property(physical_property_id, important, layer_name);
+                } else {
+                    cascaded_properties.set_property(physical_property_id, longhand_value, important, cascade_origin, layer_name, declaration);
                 }
             });
         }
@@ -1185,8 +1420,10 @@ void StyleComputer::collect_animation_into(DOM::Element& element, Optional<CSS::
             return keyframes.begin();
         }
         auto potential_match = keyframes.find_largest_not_above_iterator(key);
-        if (output_progress.value() >= 0) {
-            return --potential_match;
+        auto next = potential_match;
+        ++next;
+        if (next.is_end()) {
+            --potential_match;
         }
         return potential_match;
     }();
@@ -1207,15 +1444,63 @@ void StyleComputer::collect_animation_into(DOM::Element& element, Optional<CSS::
     }
 
     // FIXME: Follow https://drafts.csswg.org/web-animations-1/#ref-for-computed-keyframes in whatever the right place is.
-    auto compute_keyframe_values = [refresh, &computed_properties, &element, &pseudo_element](auto const& keyframe_values) {
+    auto compute_keyframe_values = [refresh, &computed_properties, &element, &pseudo_element, this](auto const& keyframe_values) {
         HashMap<PropertyID, RefPtr<CSSStyleValue const>> result;
+        HashMap<PropertyID, PropertyID> longhands_set_by_property_id;
+        auto property_is_set_by_use_initial = MUST(Bitmap::create(to_underlying(last_longhand_property_id) - to_underlying(first_longhand_property_id) + 1, false));
+
+        auto property_is_logical_alias_including_shorthands = [&](PropertyID property_id) {
+            if (property_is_shorthand(property_id))
+                // NOTE: All expanded longhands for a logical alias shorthand are logical aliases so we only need to check the first one.
+                return property_is_logical_alias(expanded_longhands_for_shorthand(property_id)[0]);
+
+            return property_is_logical_alias(property_id);
+        };
+
+        // https://drafts.csswg.org/web-animations-1/#ref-for-computed-keyframes
+        auto is_property_preferred = [&](PropertyID a, PropertyID b) {
+            // If conflicts arise when expanding shorthand properties or replacing logical properties with physical properties, apply the following rules in order until the conflict is resolved:
+            // 1. Longhand properties override shorthand properties (e.g. border-top-color overrides border-top).
+            if (property_is_shorthand(a) != property_is_shorthand(b))
+                return !property_is_shorthand(a);
+
+            // 2. Shorthand properties with fewer longhand components override those with more longhand components (e.g. border-top overrides border-color).
+            if (property_is_shorthand(a)) {
+                auto number_of_expanded_shorthands_a = expanded_longhands_for_shorthand(a).size();
+                auto number_of_expanded_shorthands_b = expanded_longhands_for_shorthand(b).size();
+
+                if (number_of_expanded_shorthands_a != number_of_expanded_shorthands_b)
+                    return number_of_expanded_shorthands_a < number_of_expanded_shorthands_b;
+            }
+
+            auto property_a_is_logical_alias = property_is_logical_alias_including_shorthands(a);
+            auto property_b_is_logical_alias = property_is_logical_alias_including_shorthands(b);
+
+            // 3. Physical properties override logical properties.
+            if (property_a_is_logical_alias != property_b_is_logical_alias)
+                return !property_a_is_logical_alias;
+
+            // 4. For shorthand properties with an equal number of longhand components, properties whose IDL name (see
+            //    the CSS property to IDL attribute algorithm [CSSOM]) appears earlier when sorted in ascending order
+            //    by the Unicode codepoints that make up each IDL name, override those who appear later.
+            return camel_case_string_from_property_id(a) < camel_case_string_from_property_id(b);
+        };
+
+        compute_font(computed_properties, &element, pseudo_element);
+        Length::FontMetrics font_metrics {
+            root_element_font_metrics_for_element(element).font_size,
+            computed_properties.first_available_computed_font().pixel_metrics()
+        };
         for (auto const& [property_id, value] : keyframe_values.properties) {
+            bool is_use_initial = false;
+
             auto style_value = value.visit(
                 [&](Animations::KeyframeEffect::KeyFrameSet::UseInitial) -> RefPtr<CSSStyleValue const> {
                     if (refresh == AnimationRefresh::Yes)
                         return {};
                     if (property_is_shorthand(property_id))
                         return {};
+                    is_use_initial = true;
                     return computed_properties.property(property_id);
                 },
                 [&](RefPtr<CSSStyleValue const> value) -> RefPtr<CSSStyleValue const> {
@@ -1227,13 +1512,31 @@ void StyleComputer::collect_animation_into(DOM::Element& element, Optional<CSS::
                 continue;
             }
 
+            // If the style value is a PendingSubstitutionStyleValue we should skip it to avoid overwriting any value
+            // already set by resolving the relevant shorthand's value.
+            if (style_value->is_pending_substitution())
+                continue;
+
             if (style_value->is_revert() || style_value->is_revert_layer())
                 style_value = computed_properties.property(property_id);
             if (style_value->is_unresolved())
                 style_value = Parser::Parser::resolve_unresolved_style_value(Parser::ParsingParams { element.document() }, element, pseudo_element, property_id, style_value->as_unresolved());
 
-            for_each_property_expanding_shorthands(property_id, *style_value, [&result](PropertyID id, CSSStyleValue const& longhand_value) {
-                result.set(id, { longhand_value });
+            for_each_property_expanding_shorthands(property_id, *style_value, [&](PropertyID longhand_id, CSSStyleValue const& longhand_value) {
+                auto physical_longhand_id = map_logical_alias_to_physical_property_id(longhand_id, LogicalAliasMappingContext { computed_properties.writing_mode(), computed_properties.direction() });
+                auto physical_longhand_id_bitmap_index = to_underlying(physical_longhand_id) - to_underlying(first_longhand_property_id);
+
+                // Don't overwrite values if this is the result of a UseInitial
+                if (result.contains(physical_longhand_id) && result.get(physical_longhand_id) != nullptr && is_use_initial)
+                    return;
+
+                // Don't overwrite unless the value was originally set by a UseInitial or this property is preferred over the one that set it originally
+                if (result.contains(physical_longhand_id) && result.get(physical_longhand_id) != nullptr && !property_is_set_by_use_initial.get(physical_longhand_id_bitmap_index) && !is_property_preferred(property_id, longhands_set_by_property_id.get(physical_longhand_id).value()))
+                    return;
+
+                longhands_set_by_property_id.set(physical_longhand_id, property_id);
+                property_is_set_by_use_initial.set(physical_longhand_id_bitmap_index, is_use_initial);
+                result.set(physical_longhand_id, { longhand_value.absolutized(viewport_rect(), font_metrics, m_root_element_font_metrics) });
             });
         }
         return result;
@@ -1339,7 +1642,7 @@ static void apply_animation_properties(DOM::Document& document, CascadedProperti
     effect.set_playback_direction(Animations::css_animation_direction_to_bindings_playback_direction(direction));
 
     if (play_state != effect.last_css_animation_play_state()) {
-        if (play_state == CSS::AnimationPlayState::Running && animation.play_state() == Bindings::AnimationPlayState::Paused) {
+        if (play_state == CSS::AnimationPlayState::Running && animation.play_state() != Bindings::AnimationPlayState::Running) {
             HTML::TemporaryExecutionContext context(document.realm());
             animation.play().release_value_but_fixme_should_propagate_errors();
         } else if (play_state == CSS::AnimationPlayState::Paused && animation.play_state() != Bindings::AnimationPlayState::Paused) {
@@ -1645,7 +1948,7 @@ void StyleComputer::start_needed_transitions(ComputedProperties const& previous_
 
 // https://www.w3.org/TR/css-cascade/#cascading
 // https://drafts.csswg.org/css-cascade-5/#layering
-GC::Ref<CascadedProperties> StyleComputer::compute_cascaded_values(DOM::Element& element, Optional<CSS::PseudoElement> pseudo_element, bool& did_match_any_pseudo_element_rules, PseudoClassBitmap& attempted_pseudo_class_matches, ComputeStyleMode mode) const
+GC::Ref<CascadedProperties> StyleComputer::compute_cascaded_values(DOM::Element& element, Optional<CSS::PseudoElement> pseudo_element, bool& did_match_any_pseudo_element_rules, PseudoClassBitmap& attempted_pseudo_class_matches, ComputeStyleMode mode, Optional<LogicalAliasMappingContext> logical_alias_mapping_context) const
 {
     auto cascaded_properties = m_document->heap().allocate<CascadedProperties>();
 
@@ -1689,10 +1992,10 @@ GC::Ref<CascadedProperties> StyleComputer::compute_cascaded_values(DOM::Element&
     // Then we apply the declarations from the matched rules in cascade order:
 
     // Normal user agent declarations
-    cascade_declarations(*cascaded_properties, element, pseudo_element, matching_rule_set.user_agent_rules, CascadeOrigin::UserAgent, Important::No, {});
+    cascade_declarations(*cascaded_properties, element, pseudo_element, matching_rule_set.user_agent_rules, CascadeOrigin::UserAgent, Important::No, {}, logical_alias_mapping_context);
 
     // Normal user declarations
-    cascade_declarations(*cascaded_properties, element, pseudo_element, matching_rule_set.user_rules, CascadeOrigin::User, Important::No, {});
+    cascade_declarations(*cascaded_properties, element, pseudo_element, matching_rule_set.user_rules, CascadeOrigin::User, Important::No, {}, logical_alias_mapping_context);
 
     // Author presentational hints
     // The spec calls this a special "Author presentational hint origin":
@@ -1715,23 +2018,23 @@ GC::Ref<CascadedProperties> StyleComputer::compute_cascaded_values(DOM::Element&
 
     // Normal author declarations, ordered by @layer, with un-@layer-ed rules last
     for (auto const& layer : matching_rule_set.author_rules) {
-        cascade_declarations(cascaded_properties, element, pseudo_element, layer.rules, CascadeOrigin::Author, Important::No, layer.qualified_layer_name);
+        cascade_declarations(cascaded_properties, element, pseudo_element, layer.rules, CascadeOrigin::Author, Important::No, layer.qualified_layer_name, logical_alias_mapping_context);
     }
 
     // Important author declarations, with un-@layer-ed rules first, followed by each @layer in reverse order.
     for (auto const& layer : matching_rule_set.author_rules.in_reverse()) {
-        cascade_declarations(cascaded_properties, element, pseudo_element, layer.rules, CascadeOrigin::Author, Important::Yes, {});
+        cascade_declarations(cascaded_properties, element, pseudo_element, layer.rules, CascadeOrigin::Author, Important::Yes, {}, logical_alias_mapping_context);
     }
 
     // Important user declarations
-    cascade_declarations(cascaded_properties, element, pseudo_element, matching_rule_set.user_rules, CascadeOrigin::User, Important::Yes, {});
+    cascade_declarations(cascaded_properties, element, pseudo_element, matching_rule_set.user_rules, CascadeOrigin::User, Important::Yes, {}, logical_alias_mapping_context);
 
     // Important user agent declarations
-    cascade_declarations(cascaded_properties, element, pseudo_element, matching_rule_set.user_agent_rules, CascadeOrigin::UserAgent, Important::Yes, {});
+    cascade_declarations(cascaded_properties, element, pseudo_element, matching_rule_set.user_agent_rules, CascadeOrigin::UserAgent, Important::Yes, {}, logical_alias_mapping_context);
 
     // Transition declarations [css-transitions-1]
     // Note that we have to do these after finishing computing the style,
-    // so they're not done here, but as the final step in compute_style_impl()
+    // so they're not done here, but as the final step in compute_properties()
 
     return cascaded_properties;
 }
@@ -2229,10 +2532,43 @@ void StyleComputer::compute_font(ComputedProperties& style, DOM::Element const* 
     }
 }
 
+StyleComputer::LogicalAliasMappingContext StyleComputer::compute_logical_alias_mapping_context(DOM::Element& element, Optional<CSS::PseudoElement> pseudo_element, ComputeStyleMode mode) const
+{
+    auto normalize_value = [&](auto property_id, auto value) {
+        if (!value || value->is_inherit() || value->is_unset()) {
+            if (auto const* inheritance_parent = element_to_inherit_style_from(&element, pseudo_element)) {
+                value = inheritance_parent->computed_properties()->property(property_id);
+            } else {
+                value = property_initial_value(property_id);
+            }
+        }
+
+        if (value->is_initial())
+            value = property_initial_value(property_id);
+
+        return value;
+    };
+
+    bool did_match_any_pseudo_element_rules = false;
+    PseudoClassBitmap attempted_pseudo_class_matches;
+
+    // FIXME: Ideally we wouldn't run the whole cascade just for these few properties.
+    auto cascaded_properties = compute_cascaded_values(element, pseudo_element, did_match_any_pseudo_element_rules, attempted_pseudo_class_matches, mode, {});
+
+    auto writing_mode = normalize_value(PropertyID::WritingMode, cascaded_properties->property(PropertyID::WritingMode));
+    auto direction = normalize_value(PropertyID::Direction, cascaded_properties->property(PropertyID::Direction));
+
+    return LogicalAliasMappingContext {
+        .writing_mode = keyword_to_writing_mode(writing_mode->to_keyword()).release_value(),
+        .direction = keyword_to_direction(direction->to_keyword()).release_value()
+    };
+}
+
 Gfx::Font const& StyleComputer::initial_font() const
 {
     // FIXME: This is not correct.
-    return ComputedProperties::font_fallback(false, false, 12);
+    static auto font = ComputedProperties::font_fallback(false, false, 12);
+    return font;
 }
 
 void StyleComputer::absolutize_values(ComputedProperties& style, GC::Ptr<DOM::Element const> element) const
@@ -2242,8 +2578,17 @@ void StyleComputer::absolutize_values(ComputedProperties& style, GC::Ptr<DOM::El
         style.first_available_computed_font().pixel_metrics()
     };
 
-    auto font_size = style.property(CSS::PropertyID::FontSize).as_length().length().to_px(viewport_rect(), font_metrics, m_root_element_font_metrics);
+    // "A percentage value specifies an absolute font size relative to the parent element’s computed font-size. Negative percentages are invalid."
+    auto& font_size_value_slot = style.m_property_values[to_underlying(CSS::PropertyID::FontSize)];
+    if (font_size_value_slot && font_size_value_slot->is_percentage()) {
+        auto parent_font_size = get_inherit_value(CSS::PropertyID::FontSize, element)->as_length().length().to_px(viewport_rect(), font_metrics, m_root_element_font_metrics);
+        font_size_value_slot = LengthStyleValue::create(
+            Length::make_px(CSSPixels::nearest_value_for(parent_font_size * font_size_value_slot->as_percentage().percentage().as_fraction())));
+    }
+
+    auto font_size = font_size_value_slot->as_length().length().to_px(viewport_rect(), font_metrics, m_root_element_font_metrics);
     font_metrics.font_size = font_size;
+    style.set_font_size({}, font_size);
 
     // NOTE: Percentage line-height values are relative to the font-size of the element.
     //       We have to resolve them right away, so that the *computed* line-height is ready for inheritance.
@@ -2505,8 +2850,8 @@ GC::Ptr<ComputedProperties> StyleComputer::compute_style_impl(DOM::Element& elem
     // 1. Perform the cascade. This produces the "specified style"
     bool did_match_any_pseudo_element_rules = false;
     PseudoClassBitmap attempted_pseudo_class_matches;
-    auto cascaded_properties = compute_cascaded_values(element, pseudo_element, did_match_any_pseudo_element_rules, attempted_pseudo_class_matches, mode);
-
+    auto logical_alias_mapping_context = compute_logical_alias_mapping_context(element, pseudo_element, mode);
+    auto cascaded_properties = compute_cascaded_values(element, pseudo_element, did_match_any_pseudo_element_rules, attempted_pseudo_class_matches, mode, logical_alias_mapping_context);
     element.set_cascaded_properties(pseudo_element, cascaded_properties);
 
     if (mode == ComputeStyleMode::CreatePseudoElementStyleIfNeeded) {
@@ -2643,6 +2988,7 @@ GC::Ref<ComputedProperties> StyleComputer::compute_properties(DOM::Element& elem
         if (property_id == PropertyID::FontSize && !value && new_font_size)
             continue;
 
+        // FIXME: Logical properties should inherit from their parent's equivalent unmapped logical property.
         if ((!value && is_inherited_property(property_id))
             || (value && value->is_inherit())) {
             if (auto inheritance_parent = element_to_inherit_style_from(&element, pseudo_element)) {
@@ -2712,11 +3058,6 @@ GC::Ref<ComputedProperties> StyleComputer::compute_properties(DOM::Element& elem
 
                 effect->set_target(&element);
                 element.set_cached_animation_name_animation(animation, pseudo_element);
-
-                if (!element.has_inclusive_ancestor_with_display_none()) {
-                    HTML::TemporaryExecutionContext context(realm);
-                    animation->play().release_value_but_fixme_should_propagate_errors();
-                }
             } else {
                 // The animation hasn't changed, but some properties of the animation may have
                 if (auto animation = element.cached_animation_name_animation(pseudo_element); animation)

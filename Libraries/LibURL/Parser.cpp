@@ -12,6 +12,7 @@
 #include <AK/Optional.h>
 #include <AK/SourceLocation.h>
 #include <AK/StringBuilder.h>
+#include <AK/StringConversions.h>
 #include <AK/StringUtils.h>
 #include <AK/Utf8View.h>
 #include <LibTextCodec/Decoder.h>
@@ -138,15 +139,7 @@ static Optional<ParsedIPv4Number> parse_ipv4_number(StringView input)
     }
 
     // 8. Let output be the mathematical integer value that is represented by input in radix-R notation, using ASCII hex digits for digits with values 0 through 15.
-    Optional<u32> maybe_output;
-    if (radix == 8)
-        maybe_output = AK::StringUtils::convert_to_uint_from_octal(input, TrimWhitespace::No);
-    else if (radix == 10)
-        maybe_output = input.to_number<u32>(TrimWhitespace::No);
-    else if (radix == 16)
-        maybe_output = AK::StringUtils::convert_to_uint_from_hex(input, TrimWhitespace::No);
-    else
-        VERIFY_NOT_REACHED();
+    auto maybe_output = AK::parse_number<u32>(input, TrimWhitespace::No, radix);
 
     // NOTE: Parsing may have failed due to overflow.
     if (!maybe_output.has_value())
@@ -551,7 +544,7 @@ static ErrorOr<String> domain_to_ascii(StringView domain, bool be_strict)
 }
 
 // https://url.spec.whatwg.org/#concept-host-parser
-static Optional<Host> parse_host(StringView input, bool is_opaque = false)
+Optional<Host> Parser::parse_host(StringView input, bool is_opaque)
 {
     // 1. If input starts with U+005B ([), then:
     if (input.starts_with('[')) {
@@ -575,7 +568,8 @@ static Optional<Host> parse_host(StringView input, bool is_opaque = false)
     // 3. Assert: input is not the empty string.
     VERIFY(!input.is_empty());
 
-    // FIXME: 4. Let domain be the result of running UTF-8 decode without BOM on the percent-decoding of input.
+    // 4. Let domain be the result of running UTF-8 decode without BOM on the percent-decoding of input.
+    // NOTE: We do not need to do the UTF-8 decode without BOM as replacement is handled within domain_to_ascii.
     auto domain = percent_decode(input);
 
     // 5. Let asciiDomain be the result of running domain to ASCII with domain and false.

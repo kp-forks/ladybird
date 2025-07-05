@@ -81,6 +81,7 @@ enum class ImageSmoothingQuality : u8;
 enum class MediaDecodingType : u8;
 enum class MediaEncodingType : u8;
 enum class MediaKeysRequirement : u8;
+enum class OffscreenRenderingContextId : u8;
 enum class ReadableStreamReaderMode : u8;
 enum class ReferrerPolicy : u8;
 enum class RenderBlockingStatusType : u8;
@@ -129,7 +130,11 @@ struct SerializedPolicy;
 
 namespace Web::ContentSecurityPolicy::Directives {
 
+class ConnectSourceDirective;
 class Directive;
+class FontSourceDirective;
+class FrameSourceDirective;
+class ImageSourceDirective;
 struct SerializedDirective;
 
 }
@@ -176,6 +181,7 @@ class AngleStyleValue;
 class BackgroundRepeatStyleValue;
 class BackgroundSizeStyleValue;
 class BasicShapeStyleValue;
+class BorderImageSliceStyleValue;
 class BorderRadiusStyleValue;
 class CalculatedStyleValue;
 class Clip;
@@ -185,6 +191,7 @@ class ConicGradientStyleValue;
 class ContentStyleValue;
 class CounterDefinitionsStyleValue;
 class CounterStyleValue;
+class CountersSet;
 class CSSAnimation;
 class CSSColorValue;
 class CSSConditionRule;
@@ -239,7 +246,7 @@ class FrequencyOrCalculated;
 class FrequencyPercentage;
 class FrequencyStyleValue;
 class GridAutoFlowStyleValue;
-class GridFitContent;
+class GridLineNames;
 class GridMinMax;
 class GridRepeat;
 class GridSize;
@@ -315,7 +322,9 @@ enum class MediaFeatureID : u8;
 enum class PropertyID : u16;
 
 struct BackgroundLayerData;
+struct CalculationResolutionContext;
 struct CSSStyleSheetInit;
+struct GridRepeatParams;
 struct StyleSheetIdentifier;
 
 }
@@ -339,6 +348,7 @@ namespace Web::DOM {
 
 class AbortController;
 class AbortSignal;
+class AbstractElement;
 class AbstractRange;
 class AccessibilityTreeNode;
 class Attr;
@@ -373,6 +383,7 @@ class NodeList;
 class ParentNode;
 class Position;
 class ProcessingInstruction;
+class PseudoElement;
 class Range;
 class RegisteredObserver;
 class ShadowRoot;
@@ -457,6 +468,15 @@ class FileList;
 
 }
 
+namespace Web::Geolocation {
+
+class Geolocation;
+class GeolocationCoordinates;
+class GeolocationPosition;
+class GeolocationPositionError;
+
+}
+
 namespace Web::Geometry {
 
 class DOMMatrix;
@@ -491,6 +511,7 @@ class CloseWatcher;
 class CloseWatcherManager;
 class CustomElementDefinition;
 class CustomElementRegistry;
+class CustomStateSet;
 class DataTransfer;
 class DataTransferItem;
 class DataTransferItemList;
@@ -607,6 +628,8 @@ class NavigationHistoryEntry;
 class NavigationObserver;
 class NavigationTransition;
 class Navigator;
+class OffscreenCanvas;
+class OffscreenCanvasRenderingContext2D;
 class PageTransitionEvent;
 class Path2D;
 class Plugin;
@@ -626,6 +649,7 @@ class TextTrack;
 class TextTrackCue;
 class TextTrackCueList;
 class TextTrackList;
+class TextTrackObserver;
 class Timer;
 class TimeRanges;
 class ToggleEvent;
@@ -917,13 +941,13 @@ struct UnderlyingSource;
 namespace Web::StorageAPI {
 
 class NavigatorStorage;
+class StorageBottle;
+class StorageBucket;
 class StorageManager;
 class StorageShed;
+class StorageShelf;
 
-struct StorageBottle;
-struct StorageBucket;
 struct StorageEndpoint;
-struct StorageShelf;
 
 }
 

@@ -9,6 +9,7 @@ set(SOURCES
     CookieJar.cpp
     Database.cpp
     DOMNodeProperties.cpp
+    HeadlessWebView.cpp
     HelperProcess.cpp
     Mutation.cpp
     Plugins/FontPlugin.cpp
@@ -20,6 +21,7 @@ set(SOURCES
     Settings.cpp
     SiteIsolation.cpp
     SourceHighlighter.cpp
+    StorageJar.cpp
     URL.cpp
     UserAgent.cpp
     Utilities.cpp
@@ -80,7 +82,7 @@ set(GENERATED_SOURCES
     UIProcessServerEndpoint.h
 )
 
-serenity_lib(LibWebView webview)
+ladybird_lib(LibWebView webview)
 target_link_libraries(LibWebView PRIVATE LibCore LibDevTools LibFileSystem LibGfx LibImageDecoderClient LibIPC LibRequests LibJS LibWeb LibUnicode LibURL LibSyntax LibTextCodec)
 
 if (APPLE)

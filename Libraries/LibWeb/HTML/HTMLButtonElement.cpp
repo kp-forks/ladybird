@@ -223,9 +223,9 @@ void HTMLButtonElement::activation_behavior(DOM::Event const& event)
         // 9. If command is in the Hide Popover state:
         if (command == "hide-popover") {
             // 1. If the result of running check popover validity given target, true, false, and null is true,
-            //    then run the hide popover algorithm given target, true, true, and false.
+            //    then run the hide popover algorithm given target, true, true, false, and element.
             if (MUST(target->check_popover_validity(ExpectedToBeShowing::Yes, ThrowExceptions::No, nullptr, IgnoreDomState::No))) {
-                MUST(target->hide_popover(FocusPreviousElement::Yes, FireEvents::Yes, ThrowExceptions::No, IgnoreDomState::No));
+                MUST(target->hide_popover(FocusPreviousElement::Yes, FireEvents::Yes, ThrowExceptions::No, IgnoreDomState::No, this));
             }
         }
 
@@ -237,10 +237,10 @@ void HTMLButtonElement::activation_behavior(DOM::Event const& event)
                 MUST(target->show_popover(ThrowExceptions::No, this));
             }
 
-            // 2. Otheriwse, if the result of running check popover validity given target, true, false, and null is true,
-            //    then run the hide popover algorithm given target, true, true, and false.
+            // 2. Otherwise, if the result of running check popover validity given target, true, false, and null is true,
+            //    then run the hide popover algorithm given target, true, true, false and element.
             else if (MUST(target->check_popover_validity(ExpectedToBeShowing::Yes, ThrowExceptions::No, nullptr, IgnoreDomState::No))) {
-                MUST(target->hide_popover(FocusPreviousElement::Yes, FireEvents::Yes, ThrowExceptions::No, IgnoreDomState::No));
+                MUST(target->hide_popover(FocusPreviousElement::Yes, FireEvents::Yes, ThrowExceptions::No, IgnoreDomState::No, this));
             }
         }
 
@@ -253,7 +253,8 @@ void HTMLButtonElement::activation_behavior(DOM::Event const& event)
             }
         }
 
-        // 12. Otherwise, if this standard defines invoker command steps for target's local name, then run the corresponding invoker command steps given target, element and command.
+        // 12. Otherwise, if this standard defines invoker command steps for target's local name,
+        //     then run the corresponding invoker command steps given target, element, and command.
         else {
             target->invoker_command_steps(*this, command);
         }
@@ -289,9 +290,10 @@ String HTMLButtonElement::command() const
     // show-popover             Show Popover   Shows the targeted popover element.
     // hide-popover             Hide Popover   Hides the targeted popover element.
     // close                    Close          Closes the targeted dialog element.
+    // request-close            Request Close  Requests to close the targeted dialog element.
     // show-modal               Show Modal     Opens the targeted dialog element as modal.
     // A custom command keyword Custom         Only dispatches the command event on the targeted element.
-    Array valid_values { "toggle-popover"_string, "show-popover"_string, "hide-popover"_string, "close"_string, "show-modal"_string };
+    Array valid_values { "toggle-popover"_string, "show-popover"_string, "hide-popover"_string, "close"_string, "request-close"_string, "show-modal"_string };
 
     // 2. If command is in the Custom state, then return command's value.
     //    A custom command keyword is a string that starts with "--".
@@ -301,7 +303,7 @@ String HTMLButtonElement::command() const
 
     // NOTE: Steps are re-ordered a bit.
 
-    // 4. Return the keword corresponding to the value of command.return
+    // 4. Return the keyword corresponding to the value of command.return
     if (command.has_value()) {
         auto command_value = command.value();
         for (auto const& value : valid_values) {

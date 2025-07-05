@@ -183,6 +183,14 @@
       "align-self"
     ]
   },
+  "all": {
+    "affects-layout": true,
+    "affects-stacking-context": true,
+    "inherited": false,
+    "initial": "initial",
+    "longhands": [],
+    "_comment": "The 'longhands' array is populated in the code generator to avoid having to maintain it manually"
+  },
   "animation": {
     "affects-layout": false,
     "inherited": false,
@@ -489,6 +497,14 @@
       "border-color"
     ]
   },
+  "border-block-color": {
+    "inherited": false,
+    "initial": "currentcolor",
+    "longhands": [
+      "border-block-start-color",
+      "border-block-end-color"
+    ]
+  },
   "border-block-end": {
     "inherited": false,
     "initial": "medium currentcolor none",
@@ -560,6 +576,22 @@
       "border-left-width"
     ],
     "max-values": 1
+  },
+  "border-block-style": {
+    "inherited": false,
+    "initial": "none",
+    "longhands": [
+      "border-block-start-style",
+      "border-block-end-style"
+    ]
+  },
+  "border-block-width": {
+    "inherited": false,
+    "initial": "medium",
+    "longhands": [
+      "border-block-start-width",
+      "border-block-end-width"
+    ]
   },
   "border-bottom": {
     "inherited": false,
@@ -655,6 +687,104 @@
       "hashless-hex-color"
     ]
   },
+  "border-end-end-radius": {
+    "logical-alias-for": [
+      "border-top-left-radius",
+      "border-bottom-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius"
+    ],
+    "max-values": 1
+  },
+  "border-end-start-radius": {
+    "logical-alias-for": [
+      "border-top-left-radius",
+      "border-bottom-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius"
+    ],
+    "max-values": 1
+  },
+  "border-image": {
+    "inherited": false,
+    "initial": "none 100% 1 0 stretch",
+    "longhands": [
+      "border-image-source",
+      "border-image-slice",
+      "border-image-width",
+      "border-image-outset",
+      "border-image-repeat"
+    ]
+  },
+  "border-image-outset": {
+    "affects-layout": false,
+    "animation-type": "by-computed-value",
+    "inherited": false,
+    "initial": "0",
+    "max-values": 4,
+    "valid-types": [
+      "length [0,∞]",
+      "number [0,∞]"
+    ]
+  },
+  "border-image-repeat": {
+    "affects-layout": false,
+    "animation-type": "discrete",
+    "inherited": false,
+    "initial": "stretch",
+    "max-values": 2,
+    "valid-types": [
+      "border-image-repeat"
+    ]
+  },
+  "border-image-slice": {
+    "affects-layout": false,
+    "animation-type": "by-computed-value",
+    "inherited": false,
+    "initial": "100%",
+    "valid-identifiers": [
+      "fill"
+    ],
+    "valid-types": [
+      "number [0,∞]",
+      "percentage [0,∞]"
+    ]
+  },
+  "border-image-source": {
+    "affects-layout": false,
+    "animation-type": "discrete",
+    "inherited": false,
+    "initial": "none",
+    "valid-types": [
+      "image"
+    ],
+    "valid-identifiers": [
+      "none"
+    ]
+  },
+  "border-image-width": {
+    "affects-layout": false,
+    "animation-type": "by-computed-value",
+    "inherited": false,
+    "initial": "1",
+    "max-values": 4,
+    "valid-types": [
+      "length [0,∞]",
+      "percentage [0,∞]",
+      "number [0,∞]"
+    ],
+    "valid-identifiers": [
+      "auto"
+    ]
+  },
+  "border-inline-color": {
+    "inherited": false,
+    "initial": "currentcolor",
+    "longhands": [
+      "border-inline-start-color",
+      "border-inline-end-color"
+    ]
+  },
   "border-inline-end": {
     "inherited": false,
     "initial": "medium currentcolor none",
@@ -726,6 +856,22 @@
       "border-left-width"
     ],
     "max-values": 1
+  },
+  "border-inline-style": {
+    "inherited": false,
+    "initial": "none",
+    "longhands": [
+      "border-inline-start-style",
+      "border-inline-end-style"
+    ]
+  },
+  "border-inline-width": {
+    "inherited": false,
+    "initial": "medium",
+    "longhands": [
+      "border-inline-start-width",
+      "border-inline-end-width"
+    ]
   },
   "border-left": {
     "inherited": false,
@@ -844,6 +990,24 @@
     "quirks": [
       "unitless-length"
     ]
+  },
+  "border-start-end-radius": {
+    "logical-alias-for": [
+      "border-top-left-radius",
+      "border-bottom-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius"
+    ],
+    "max-values": 1
+  },
+  "border-start-start-radius": {
+    "logical-alias-for": [
+      "border-top-left-radius",
+      "border-bottom-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius"
+    ],
+    "max-values": 1
   },
   "border-style": {
     "initial": "none",
@@ -1257,6 +1421,14 @@
       "display-legacy"
     ]
   },
+  "empty-cells": {
+    "animation-type": "discrete",
+    "inherited": true,
+    "initial": "show",
+    "valid-types": [
+      "empty-cells"
+    ]
+  },
   "fill": {
     "affects-layout": false,
     "animation-type": "none",
@@ -1407,6 +1579,14 @@
       "normal",
       "on",
       "off"
+    ]
+  },
+  "font-kerning": {
+    "animation-type": "discrete",
+    "inherited": true,
+    "initial": "auto",
+    "valid-types": [
+      "font-kerning"
     ]
   },
   "font-language-override": {
@@ -1844,10 +2024,20 @@
     "percentages-resolve-to": "length"
   },
   "inset-block": {
-    "logical-alias-for": [
-      "inset"
+    "initial": "auto",
+    "longhands": [
+      "inset-block-start",
+      "inset-block-end"
     ],
-    "max-values": 2
+    "max-values": 2,
+    "valid-types": [
+      "length [-∞,∞]",
+      "percentage [-∞,∞]"
+    ],
+    "valid-identifiers": [
+      "auto"
+    ],
+    "percentages-resolve-to": "length"
   },
   "inset-block-end": {
     "logical-alias-for": [
@@ -1868,10 +2058,20 @@
     "max-values": 1
   },
   "inset-inline": {
-    "logical-alias-for": [
-      "inset"
+    "initial": "auto",
+    "longhands": [
+      "inset-inline-start",
+      "inset-inline-end"
     ],
-    "max-values": 2
+    "max-values": 2,
+    "valid-types": [
+      "length [-∞,∞]",
+      "percentage [-∞,∞]"
+    ],
+    "valid-identifiers": [
+      "auto"
+    ],
+    "percentages-resolve-to": "length"
   },
   "inset-inline-end": {
     "logical-alias-for": [
@@ -2029,10 +2229,20 @@
     ]
   },
   "margin-block": {
-    "logical-alias-for": [
-      "margin"
+    "initial": "0",
+    "longhands": [
+      "margin-block-start",
+      "margin-block-end"
     ],
-    "max-values": 2
+    "max-values": 2,
+    "valid-types": [
+      "length [-∞,∞]",
+      "percentage [-∞,∞]"
+    ],
+    "valid-identifiers": [
+      "auto"
+    ],
+    "percentages-resolve-to": "length"
   },
   "margin-block-end": {
     "logical-alias-for": [
@@ -2067,10 +2277,20 @@
     ]
   },
   "margin-inline": {
-    "logical-alias-for": [
-      "margin"
+    "initial": "0",
+    "longhands": [
+      "margin-inline-start",
+      "margin-inline-end"
     ],
-    "max-values": 2
+    "max-values": 2,
+    "valid-types": [
+      "length [-∞,∞]",
+      "percentage [-∞,∞]"
+    ],
+    "valid-identifiers": [
+      "auto"
+    ],
+    "percentages-resolve-to": "length"
   },
   "margin-inline-end": {
     "logical-alias-for": [
@@ -2445,10 +2665,17 @@
     ]
   },
   "padding-block": {
-    "logical-alias-for": [
-      "padding"
+    "initial": "0",
+    "longhands": [
+      "padding-block-start",
+      "padding-block-end"
     ],
-    "max-values": 2
+    "max-values": 2,
+    "valid-types": [
+      "length [0,∞]",
+      "percentage [0,∞]"
+    ],
+    "percentages-resolve-to": "length"
   },
   "padding-block-end": {
     "logical-alias-for": [
@@ -2480,10 +2707,17 @@
     ]
   },
   "padding-inline": {
-    "logical-alias-for": [
-      "padding"
+    "initial": "0",
+    "longhands": [
+      "padding-inline-start",
+      "padding-inline-end"
     ],
-    "max-values": 2
+    "max-values": 2,
+    "valid-types": [
+      "length [0,∞]",
+      "percentage [0,∞]"
+    ],
+    "percentages-resolve-to": "length"
   },
   "padding-inline-end": {
     "logical-alias-for": [
@@ -2599,8 +2833,8 @@
     "inherited": false,
     "initial": "0",
     "valid-types": [
-      "length [-∞,∞]",
-      "percentage [-∞,∞]"
+      "length [0,∞]",
+      "percentage [0,∞]"
     ],
     "percentages-resolve-to": "length",
     "quirks": [
@@ -2649,8 +2883,8 @@
     "inherited": false,
     "initial": "auto",
     "valid-types": [
-      "length [-∞,∞]",
-      "percentage [-∞,∞]"
+      "length [0,∞]",
+      "percentage [0,∞]"
     ],
     "valid-identifiers": [
       "auto"
@@ -2666,8 +2900,8 @@
     "inherited": false,
     "initial": "auto",
     "valid-types": [
-      "length [-∞,∞]",
-      "percentage [-∞,∞]"
+      "length [0,∞]",
+      "percentage [0,∞]"
     ],
     "valid-identifiers": [
       "auto"
@@ -2925,6 +3159,15 @@
       "text-overflow"
     ]
   },
+  "text-rendering": {
+    "affects-layout": false,
+    "animation-type": "discrete",
+    "inherited": true,
+    "initial": "auto",
+    "valid-types": [
+      "text-rendering"
+    ]
+  },
   "text-shadow": {
     "affects-layout": false,
     "animation-type": "custom",
@@ -2943,12 +3186,28 @@
       "text-transform"
     ]
   },
+  "text-wrap": {
+    "inherited": true,
+    "initial": "wrap",
+    "longhands": [
+      "text-wrap-mode",
+      "text-wrap-style"
+    ]
+  },
   "text-wrap-mode": {
     "animation-type": "discrete",
     "inherited": true,
     "initial": "wrap",
     "valid-types": [
       "text-wrap-mode"
+    ]
+  },
+  "text-wrap-style": {
+    "animation-type": "discrete",
+    "inherited": true,
+    "initial": "auto",
+    "valid-types": [
+      "text-wrap-style"
     ]
   },
   "top": {

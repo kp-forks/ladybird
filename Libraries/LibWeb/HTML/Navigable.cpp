@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022-2024, Andreas Kling <andreas@ladybird.org>
- * Copyright (c) 2023, Aliaksandr Kalenik <kalenik.aliaksandr@gmail.com>
+ * Copyright (c) 2023-2025, Aliaksandr Kalenik <kalenik.aliaksandr@gmail.com>
  * Copyright (c) 2025, Luke Wilde <luke@ladybird.org>
  *
  * SPDX-License-Identifier: BSD-2-Clause
@@ -109,11 +109,50 @@ bool Navigable::is_ancestor_of(GC::Ref<Navigable> other) const
     return false;
 }
 
-Navigable::Navigable(GC::Ref<Page> page)
+static RefPtr<Gfx::SkiaBackendContext> g_cached_skia_backend_context;
+
+static RefPtr<Gfx::SkiaBackendContext> get_skia_backend_context()
+{
+    if (!g_cached_skia_backend_context) {
+#ifdef AK_OS_MACOS
+        auto metal_context = Gfx::get_metal_context();
+        g_cached_skia_backend_context = Gfx::SkiaBackendContext::create_metal_context(*metal_context);
+#elif USE_VULKAN
+        auto maybe_vulkan_context = Gfx::create_vulkan_context();
+        if (maybe_vulkan_context.is_error()) {
+            dbgln("Vulkan context creation failed: {}", maybe_vulkan_context.error());
+            return {};
+        }
+
+        auto vulkan_context = maybe_vulkan_context.release_value();
+        g_cached_skia_backend_context = Gfx::SkiaBackendContext::create_vulkan_context(vulkan_context);
+#endif
+    }
+    return g_cached_skia_backend_context;
+}
+
+Navigable::Navigable(GC::Ref<Page> page, bool is_svg_page)
     : m_page(page)
     , m_event_handler({}, *this)
+    , m_is_svg_page(is_svg_page)
+    , m_backing_store_manager(heap().allocate<Painting::BackingStoreManager>(*this))
 {
     all_navigables().set(*this);
+
+    if (!m_is_svg_page) {
+        auto display_list_player_type = page->client().display_list_player_type();
+        OwnPtr<Painting::DisplayListPlayerSkia> skia_player;
+        if (display_list_player_type == DisplayListPlayerType::SkiaGPUIfAvailable) {
+            m_skia_backend_context = get_skia_backend_context();
+            skia_player = make<Painting::DisplayListPlayerSkia>(m_skia_backend_context);
+        } else {
+            skia_player = make<Painting::DisplayListPlayerSkia>();
+        }
+
+        m_rendering_thread.set_skia_player(move(skia_player));
+        m_rendering_thread.set_skia_backend_context(m_skia_backend_context);
+        m_rendering_thread.start(display_list_player_type);
+    }
 }
 
 Navigable::~Navigable() = default;
@@ -133,6 +172,7 @@ void Navigable::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_active_session_history_entry);
     visitor.visit(m_container);
     visitor.visit(m_navigation_observers);
+    visitor.visit(m_backing_store_manager);
     m_event_handler.visit_edges(visitor);
 
     for (auto& navigation_params : m_pending_navigations) {
@@ -751,19 +791,21 @@ static GC::Ref<NavigationParams> create_navigation_params_from_a_srcdoc_resource
     //    FIXME: navigation timing type: navTimingType
     //    about base URL: entry's document state's about base URL
     //    user involvement: userInvolvement
-    auto navigation_params = vm.heap().allocate<NavigationParams>();
-    navigation_params->id = move(navigation_id);
-    navigation_params->navigable = navigable;
-    navigation_params->response = response;
-    navigation_params->coop_enforcement_result = move(coop_enforcement_result);
-    navigation_params->origin = move(response_origin);
-    navigation_params->policy_container = *policy_container;
-    navigation_params->final_sandboxing_flag_set = target_snapshot_params.sandboxing_flags;
-    navigation_params->opener_policy = move(coop);
-    navigation_params->about_base_url = entry->document_state()->about_base_url();
-    navigation_params->user_involvement = user_involvement;
-
-    return navigation_params;
+    return vm.heap().allocate<NavigationParams>(
+        move(navigation_id),
+        navigable,
+        nullptr,
+        response,
+        nullptr,
+        nullptr,
+        move(coop_enforcement_result),
+        nullptr,
+        move(response_origin),
+        *policy_container,
+        target_snapshot_params.sandboxing_flags,
+        move(coop),
+        entry->document_state()->about_base_url(),
+        user_involvement);
 }
 
 // https://html.spec.whatwg.org/multipage/browsing-the-web.html#create-navigation-params-by-fetching
@@ -1109,15 +1151,14 @@ static WebIDL::ExceptionOr<Navigable::NavigationParamsVariant> create_navigation
         // - initiator origin: responseOrigin
         // FIXME: - navigation timing type: navTimingType
         // - user involvement: userInvolvement
-        auto navigation_params = vm.heap().allocate<NonFetchSchemeNavigationParams>();
-        navigation_params->id = navigation_id;
-        navigation_params->navigable = navigable;
-        navigation_params->url = location_url.release_value().value();
-        navigation_params->target_snapshot_sandboxing_flags = target_snapshot_params.sandboxing_flags;
-        navigation_params->source_snapshot_has_transient_activation = source_snapshot_params.has_transient_activation;
-        navigation_params->initiator_origin = move(*response_origin);
-        navigation_params->user_involvement = user_involvement;
-        return navigation_params;
+        return vm.heap().allocate<NonFetchSchemeNavigationParams>(
+            navigation_id,
+            navigable,
+            location_url.release_value().value(),
+            target_snapshot_params.sandboxing_flags,
+            source_snapshot_params.has_transient_activation,
+            move(*response_origin),
+            user_involvement);
     }
 
     // 21. If any of the following are true:
@@ -1145,7 +1186,8 @@ static WebIDL::ExceptionOr<Navigable::NavigationParamsVariant> create_navigation
         [](DocumentState::Client) -> GC::Ptr<PolicyContainer> { return {}; });
     auto result_policy_container = determine_navigation_params_policy_container(*response_holder->response()->url(), realm.heap(), history_policy_container, source_snapshot_params.source_policy_container, {}, response_policy_container);
 
-    // 24. If navigable's container is an iframe, and response's timing allow passed flag is set, then set container's pending resource-timing start time to null.
+    // 24. If navigable's container is an iframe, and response's timing allow passed flag is set,
+    //     then set navigable's container's pending resource-timing start time to null.
     if (navigable->container() && is<HTML::HTMLIFrameElement>(*navigable->container()) && response_holder->response()->timing_allow_passed())
         static_cast<HTML::HTMLIFrameElement&>(*navigable->container()).set_pending_resource_start_time({});
 
@@ -1165,22 +1207,21 @@ static WebIDL::ExceptionOr<Navigable::NavigationParamsVariant> create_navigation
     //     FIXME: navigation timing type: navTimingType
     //     about base URL: entry's document state's about base URL
     //     user involvement: userInvolvement
-    auto navigation_params = vm.heap().allocate<NavigationParams>();
-    navigation_params->id = navigation_id;
-    navigation_params->navigable = navigable;
-    navigation_params->request = request;
-    navigation_params->response = *response_holder->response();
-    navigation_params->fetch_controller = fetch_controller;
-    navigation_params->commit_early_hints = move(commit_early_hints);
-    navigation_params->coop_enforcement_result = coop_enforcement_result;
-    navigation_params->reserved_environment = request->reserved_client();
-    navigation_params->origin = *response_origin;
-    navigation_params->policy_container = result_policy_container;
-    navigation_params->final_sandboxing_flag_set = final_sandbox_flags;
-    navigation_params->opener_policy = response_coop;
-    navigation_params->about_base_url = entry->document_state()->about_base_url();
-    navigation_params->user_involvement = user_involvement;
-    return navigation_params;
+    return vm.heap().allocate<NavigationParams>(
+        navigation_id,
+        navigable,
+        request,
+        *response_holder->response(),
+        fetch_controller,
+        move(commit_early_hints),
+        coop_enforcement_result,
+        request->reserved_client(),
+        *response_origin,
+        result_policy_container,
+        final_sandbox_flags,
+        response_coop,
+        entry->document_state()->about_base_url(),
+        user_involvement);
 }
 
 // https://html.spec.whatwg.org/multipage/browsing-the-web.html#attempt-to-populate-the-history-entry's-document
@@ -1233,15 +1274,14 @@ WebIDL::ExceptionOr<void> Navigable::populate_session_history_entry_document(
             // - initiator origin: entry's document state's initiator origin
             // FIXME: - navigation timing type: navTimingType
             // - user involvement: userInvolvement
-            auto non_fetching_scheme_navigation_params = vm().heap().allocate<NonFetchSchemeNavigationParams>();
-            non_fetching_scheme_navigation_params->id = navigation_id;
-            non_fetching_scheme_navigation_params->navigable = this;
-            non_fetching_scheme_navigation_params->url = entry->url();
-            non_fetching_scheme_navigation_params->target_snapshot_sandboxing_flags = target_snapshot_params.sandboxing_flags;
-            non_fetching_scheme_navigation_params->source_snapshot_has_transient_activation = source_snapshot_params.has_transient_activation;
-            non_fetching_scheme_navigation_params->initiator_origin = *entry->document_state()->initiator_origin();
-            non_fetching_scheme_navigation_params->user_involvement = user_involvement;
-            navigation_params = non_fetching_scheme_navigation_params;
+            navigation_params = vm().heap().allocate<NonFetchSchemeNavigationParams>(
+                navigation_id,
+                this,
+                entry->url(),
+                target_snapshot_params.sandboxing_flags,
+                source_snapshot_params.has_transient_activation,
+                *entry->document_state()->initiator_origin(),
+                user_involvement);
         }
     }
 
@@ -1891,21 +1931,21 @@ GC::Ptr<DOM::Document> Navigable::evaluate_javascript_url(URL::URL const& url, U
     //     FIXME: navigation timing type: "navigate"
     //     about base URL: targetNavigable's active document's about base URL
     //     user involvement: userInvolvement
-    auto navigation_params = vm.heap().allocate<NavigationParams>();
-    navigation_params->id = navigation_id;
-    navigation_params->navigable = this;
-    navigation_params->request = {};
-    navigation_params->response = response;
-    navigation_params->fetch_controller = nullptr;
-    navigation_params->commit_early_hints = nullptr;
-    navigation_params->coop_enforcement_result = move(coop_enforcement_result);
-    navigation_params->reserved_environment = {};
-    navigation_params->origin = new_document_origin;
-    navigation_params->policy_container = policy_container;
-    navigation_params->final_sandboxing_flag_set = final_sandbox_flags;
-    navigation_params->opener_policy = coop;
-    navigation_params->about_base_url = active_document()->about_base_url();
-    navigation_params->user_involvement = user_involvement;
+    auto navigation_params = vm.heap().allocate<NavigationParams>(
+        navigation_id,
+        this,
+        nullptr,
+        response,
+        nullptr,
+        nullptr,
+        move(coop_enforcement_result),
+        nullptr,
+        new_document_origin,
+        policy_container,
+        final_sandbox_flags,
+        coop,
+        active_document()->about_base_url(),
+        user_involvement);
 
     // 17. Return the result of loading an HTML document given navigationParams.
     return load_document(navigation_params);
@@ -2284,10 +2324,16 @@ CSSPixelPoint Navigable::to_top_level_position(CSSPixelPoint a_position)
 
 void Navigable::set_viewport_size(CSSPixelSize size)
 {
-    if (m_size == size)
+    if (m_viewport_size == size)
         return;
 
-    m_size = size;
+    if (!m_is_svg_page) {
+        m_backing_store_manager->restart_resize_timer();
+        m_backing_store_manager->resize_backing_stores_if_needed(Web::Painting::BackingStoreManager::WindowResizingInProgress::Yes);
+        m_pending_set_browser_zoom_request = false;
+    }
+
+    m_viewport_size = size;
     if (auto document = active_document()) {
         // NOTE: Resizing the viewport changes the reference value for viewport-relative CSS lengths.
         document->invalidate_style(DOM::StyleInvalidationReason::NavigableSetViewportSize);
@@ -2338,10 +2384,7 @@ bool Navigable::has_a_rendering_opportunity() const
     // Rendering opportunities typically occur at regular intervals.
 
     // FIXME: Return `false` here if we're an inactive browser tab.
-    auto browsing_context = const_cast<Navigable*>(this)->active_browsing_context();
-    if (!browsing_context)
-        return false;
-    return browsing_context->page().client().is_ready_to_paint();
+    return is_ready_to_paint();
 }
 
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#inform-the-navigation-api-about-child-navigable-destruction
@@ -2497,6 +2540,54 @@ void Navigable::set_has_session_history_entry_and_ready_for_navigation()
         auto navigation_params = m_pending_navigations.take_first();
         begin_navigation(navigation_params);
     }
+}
+
+bool Navigable::is_ready_to_paint() const
+{
+    return m_number_of_queued_rasterization_tasks <= 1;
+}
+
+void Navigable::ready_to_paint()
+{
+    m_number_of_queued_rasterization_tasks--;
+    VERIFY(m_number_of_queued_rasterization_tasks >= 0 && m_number_of_queued_rasterization_tasks < 2);
+}
+
+void Navigable::paint_next_frame()
+{
+    auto [backing_store_id, painting_surface] = m_backing_store_manager->acquire_store_for_next_frame();
+    if (!painting_surface)
+        return;
+
+    VERIFY(m_number_of_queued_rasterization_tasks <= 1);
+    m_number_of_queued_rasterization_tasks++;
+
+    auto viewport_rect = page().css_to_device_rect(this->viewport_rect());
+    PaintConfig paint_config { .paint_overlay = true, .should_show_line_box_borders = m_should_show_line_box_borders, .canvas_fill_rect = Gfx::IntRect { {}, viewport_rect.size().to_type<int>() } };
+    start_display_list_rendering(*painting_surface, paint_config, [this, viewport_rect, backing_store_id] {
+        if (!is_top_level_traversable())
+            return;
+        auto& traversable = *page().top_level_traversable();
+        traversable.page().client().page_did_paint(viewport_rect.to_type<int>(), backing_store_id);
+    });
+}
+
+void Navigable::start_display_list_rendering(Gfx::PaintingSurface& painting_surface, PaintConfig paint_config, Function<void()>&& callback)
+{
+    m_needs_repaint = false;
+    auto document = active_document();
+    if (!document) {
+        callback();
+        return;
+    }
+    document->paintable()->refresh_scroll_state();
+    auto display_list = document->record_display_list(paint_config);
+    if (!display_list) {
+        callback();
+        return;
+    }
+    auto scroll_state_snapshot = document->paintable()->scroll_state().snapshot();
+    m_rendering_thread.enqueue_rendering_task(*display_list, move(scroll_state_snapshot), painting_surface, move(callback));
 }
 
 }
